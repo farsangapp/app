@@ -1,0 +1,93 @@
+name: Farsang
+
+options:
+  bundleIdPrefix: dev.djawadi
+  deploymentTarget:
+    iOS: "18.0"
+    watchOS: "11.0"
+  createIntermediateGroups: true
+  generateEmptyDirectories: true
+  # The shared `Farsang` scheme is the build-and-test entry point. A launch
+  # runnable would pin its destinations to one platform, so CI could not build
+  # the watch app and test on an iPhone simulator with the same scheme. Strip
+  # it; use the FarsangPhone and FarsangWatch schemes to run an app.
+  postGenCommand: >-
+    perl -0pi -e 's{<BuildableProductRunnable.*?</BuildableProductRunnable>\s*}{}gs'
+    Farsang.xcodeproj/xcshareddata/xcschemes/Farsang.xcscheme
+
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    SWIFT_STRICT_CONCURRENCY: complete
+    SWIFT_TREAT_WARNINGS_AS_ERRORS: YES
+    GCC_TREAT_WARNINGS_AS_ERRORS: YES
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+    GENERATE_INFOPLIST_FILE: YES
+
+packages:
+  FarsangCore:
+    path: Packages/FarsangCore
+
+targets:
+  Farsang:
+    type: application
+    platform: iOS
+    sources:
+      - Apps/iPhone
+    dependencies:
+      - package: FarsangCore
+      - target: FarsangWatch
+        embed: true
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: dev.djawadi.farsang
+        PRODUCT_NAME: Farsang
+        TARGETED_DEVICE_FAMILY: "1"
+        INFOPLIST_KEY_CFBundleDisplayName: Farsang
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
+        INFOPLIST_KEY_UISupportedInterfaceOrientations: UIInterfaceOrientationPortrait
+
+  FarsangWatch:
+    type: application
+    platform: watchOS
+    sources:
+      - Apps/Watch
+    dependencies:
+      - package: FarsangCore
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: dev.djawadi.farsang.watchkitapp
+        TARGETED_DEVICE_FAMILY: "4"
+        INFOPLIST_KEY_CFBundleDisplayName: Farsang
+        INFOPLIST_KEY_WKApplication: YES
+        INFOPLIST_KEY_WKCompanionAppBundleIdentifier: dev.djawadi.farsang
+        INFOPLIST_KEY_WKRunsIndependentlyOfCompanionApp: YES
+
+schemes:
+  Farsang:
+    build:
+      targets:
+        Farsang: all
+        FarsangWatch: all
+    run:
+      config: Debug
+    test:
+      config: Debug
+      targets:
+        - package: FarsangCore/FarsangCoreTests
+    profile:
+      config: Release
+    analyze:
+      config: Debug
+    archive:
+      config: Release
+  FarsangPhone:
+    build:
+      targets:
+        Farsang: all
+        FarsangWatch: all
+    run:
+      config: Debug
+      executable: Farsang
