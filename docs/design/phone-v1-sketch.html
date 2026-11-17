@@ -1,0 +1,292 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root { --amber:#ffb627; --mint:#32d583; --cyan:#35d0ff; --red:#ff453a; --ink:#f4f5f6; --dim:#8b949c; --card:#14181c; }
+  * { box-sizing: border-box; }
+  .wrap { font-family: ui-rounded, "SF Pro Rounded", -apple-system, system-ui, sans-serif; }
+  h3 { font-size: 13px; letter-spacing: .08em; text-transform: uppercase; margin: 22px 0 10px; color: var(--muted-foreground, #8b949c); font-weight: 600; }
+  .row { display: grid; grid-template-columns: repeat(3, auto); gap: 22px 22px; justify-content: start; }
+  .fig { display: flex; flex-direction: column; gap: 8px; }
+  .cap { font-size: 12px; color: var(--muted-foreground, #8b949c); max-width: 200px; line-height: 1.35; }
+  .cap b { color: var(--foreground); font-weight: 600; }
+
+  .watch { width: 196px; height: 236px; border-radius: 46px; background: #000; border: 5px solid #2a2a2e; box-shadow: 0 0 0 1px #46464c; position: relative; overflow: hidden; color: var(--ink); }
+  .watch svg.map { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+  .abs { position: absolute; }
+  .num { font-variant-numeric: tabular-nums; font-weight: 700; letter-spacing: -.02em; }
+  .unit { font-size: 10px; color: var(--dim); font-weight: 600; letter-spacing: 0; }
+  .chip { white-space: nowrap; display: inline-flex; align-items: center; gap: 4px; font-size: 10px; font-weight: 600; padding: 3px 8px; border-radius: 99px; background: #1b2025; color: #c9d0d6; }
+  .chip.ok { background: rgba(50,213,131,.16); color: var(--mint); }
+  .chip.warn { background: rgba(255,182,39,.16); color: var(--amber); }
+  .banner { left: 8px; right: 8px; top: 14px; border-radius: 18px; padding: 8px 10px; display: flex; gap: 8px; align-items: center; background: rgba(18,20,24,.94); border: 1px solid rgba(255,255,255,.08); }
+  .banner .ic { width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; background: var(--amber); color: #000; font-weight: 800; font-size: 15px; flex: none; }
+  .banner .l1 { font-size: 13px; font-weight: 700; line-height: 1.1; }
+  .banner .l2 { font-size: 10px; color: var(--dim); margin-top: 2px; }
+  .banner.red { background: var(--red); border: 0; }
+  .banner.red .ic { background: #fff; color: var(--red); }
+  .banner.red .l2 { color: rgba(255,255,255,.85); }
+  .bar { left: 0; right: 0; bottom: 0; padding: 22px 14px 14px; background: linear-gradient(to top, rgba(0,0,0,.92) 55%, rgba(0,0,0,0)); display: flex; justify-content: space-between; align-items: flex-end; }
+  .btn { left: 10px; right: 10px; bottom: 10px; height: 40px; border-radius: 99px; background: var(--mint); color: #04210f; font-weight: 800; font-size: 15px; display: grid; place-items: center; }
+
+  .phone { width: 212px; height: 440px; border-radius: 34px; background: #0a0c0f; border: 6px solid #2a2a2e; box-shadow: 0 0 0 1px #46464c; position: relative; overflow: hidden; color: var(--ink); padding: 34px 12px 12px; display: flex; flex-direction: column; gap: 8px; }
+  .phone .notch { position: absolute; top: 8px; left: 50%; width: 62px; height: 16px; margin-left: -31px; background: #000; border-radius: 99px; }
+  .phone h2 { font-size: 22px; margin: 2px 0 2px; font-weight: 800; letter-spacing: -.02em; }
+  .top { display: flex; justify-content: space-between; align-items: center; }
+  .plus { width: 26px; height: 26px; border-radius: 50%; background: var(--amber); color: #000; font-weight: 800; display: grid; place-items: center; font-size: 17px; line-height: 1; }
+  .card { background: var(--card); border-radius: 14px; padding: 8px; display: flex; gap: 9px; align-items: center; }
+  .card .th { width: 52px; height: 52px; border-radius: 10px; overflow: hidden; flex: none; }
+  .card .th svg { width: 100%; height: 100%; display: block; }
+  .card .nm { font-size: 12px; font-weight: 700; }
+  .card .mt { font-size: 10px; color: var(--dim); margin: 2px 0 4px; }
+  .grp { background: var(--card); border-radius: 14px; overflow: hidden; }
+  .set { display: flex; justify-content: space-between; align-items: center; padding: 9px 10px; font-size: 11px; border-bottom: 1px solid #1f252a; }
+  .set:last-child { border-bottom: 0; }
+  .set .v { color: var(--dim); }
+  .tog { width: 30px; height: 18px; border-radius: 99px; background: var(--mint); position: relative; }
+  .tog::after { content: ""; position: absolute; right: 2px; top: 2px; width: 14px; height: 14px; border-radius: 50%; background: #fff; }
+  .seg { display: flex; background: #1f252a; border-radius: 8px; padding: 2px; font-size: 10px; font-weight: 700; }
+  .seg span { padding: 3px 9px; border-radius: 6px; color: var(--dim); }
+  .seg span.on { background: #3a434b; color: #fff; }
+  .cta { margin-top: auto; height: 38px; border-radius: 12px; background: var(--amber); color: #1a1100; font-weight: 800; font-size: 13px; display: grid; place-items: center; }
+  .cta2 { height: 34px; border-radius: 12px; background: #1f252a; color: #fff; font-weight: 700; font-size: 12px; display: grid; place-items: center; }
+  .stat { display: flex; justify-content: space-between; margin: 4px 2px; }
+  .stat div { font-size: 10px; color: var(--dim); }
+  .stat b { display: block; white-space: nowrap; font-size: 14px; color: var(--ink); font-variant-numeric: tabular-nums; letter-spacing: -.02em; }
+  .note { font-size: 12px; color: var(--muted-foreground, #8b949c); max-width: 660px; line-height: 1.5; margin-top: 18px; }
+  .swatches { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 4px; }
+  .sw { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--muted-foreground, #8b949c); }
+  .sw i { width: 16px; height: 16px; border-radius: 5px; display: block; border: 1px solid rgba(128,128,128,.3); }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="base" viewBox="0 0 190 230">
+      <rect width="190" height="230" fill="#0f1418"/>
+      <path d="M-10 150 C 40 128, 70 176, 120 160 S 180 118, 210 134 L210 176 C 182 160, 150 202, 110 196 S 40 166, -10 188 Z" fill="#0c2236"/>
+      <path d="M8 18 h62 v52 h-62 z" fill="#10221a"/>
+      <path d="M118 58 h64 v48 h-64 z" fill="#10221a"/>
+      <path d="M16 196 h54 v34 h-54 z" fill="#10221a"/>
+      <g stroke="#1f2a31" stroke-width="2" fill="none">
+        <path d="M-5 40 H200 M-5 90 H200 M-5 120 H200 M-5 212 H200"/>
+        <path d="M30 -5 V235 M80 -5 V235 M130 -5 V235 M170 -5 V235"/>
+      </g>
+      <g stroke="#33414a" stroke-width="4" fill="none" stroke-linecap="round">
+        <path d="M-10 104 L200 66"/>
+        <path d="M96 -10 L108 240"/>
+      </g>
+      <g stroke="#3f6b4c" stroke-width="1.5" fill="none" stroke-dasharray="2 3" stroke-linecap="round">
+        <path d="M14 56 C 30 40, 50 62, 64 34"/>
+        <path d="M124 100 C 140 80, 160 96, 176 64"/>
+        <path d="M22 220 C 40 204, 56 224, 66 202"/>
+      </g>
+    </symbol>
+    <symbol id="routeFull" viewBox="0 0 190 230">
+      <path d="M30 210 V120 H80 V90 H130 V40 H170" fill="none" stroke="#000" stroke-width="8" stroke-linejoin="round" stroke-linecap="round"/>
+      <path d="M30 210 V120 H80 V90 H130 V40 H170" fill="none" stroke="#ffb627" stroke-width="4.5" stroke-linejoin="round" stroke-linecap="round"/>
+    </symbol>
+  </defs>
+</svg>
+
+<h3>Apple Watch</h3>
+<div class="row">
+
+  <div class="fig">
+    <div class="watch">
+      <div class="abs" style="left:14px;top:12px;font-size:12px;font-weight:700;color:var(--dim)">Route</div>
+      <div class="abs" style="left:14px;top:28px;font-size:16px;font-weight:800;letter-spacing:-.02em">Riverside 10K</div>
+      <div class="abs" style="left:10px;right:10px;top:56px;height:86px;border-radius:16px;overflow:hidden">
+        <svg viewBox="20 40 150 100" preserveAspectRatio="xMidYMid slice" style="width:100%;height:100%;display:block">
+          <use href="#base" width="190" height="230"/><use href="#routeFull" width="190" height="230"/>
+        </svg>
+      </div>
+      <div class="abs" style="left:12px;top:150px;display:flex;gap:5px">
+        <span class="chip"><b class="num" style="font-size:11px">10.2</b>km</span>
+        <span class="chip">↑ 84 m</span>
+        <span class="chip ok">Offline</span>
+      </div>
+      <div class="abs btn">Start run</div>
+    </div>
+    <div class="cap"><b>Before the run.</b> Pick a synced route. Green "Offline" means the map pack is on the watch.</div>
+  </div>
+
+  <div class="fig">
+    <div class="watch">
+      <svg class="map" viewBox="0 0 190 230" preserveAspectRatio="xMidYMid slice">
+        <use href="#base" width="190" height="230"/>
+        <path d="M30 210 V120 H80 V104" fill="none" stroke="#6b4f0d" stroke-width="4.5" stroke-linejoin="round" stroke-linecap="round"/>
+        <path d="M80 104 V90 H130 V40 H170" fill="none" stroke="#000" stroke-width="8" stroke-linejoin="round" stroke-linecap="round"/>
+        <path d="M80 104 V90 H130 V40 H170" fill="none" stroke="#ffb627" stroke-width="4.5" stroke-linejoin="round" stroke-linecap="round"/>
+        <path d="M80 104 L72 128 L88 128 Z" fill="rgba(53,208,255,.28)" transform="rotate(180 80 104) translate(0 -6)"/>
+        <circle cx="80" cy="104" r="9" fill="rgba(53,208,255,.25)"/>
+        <circle cx="80" cy="104" r="5.5" fill="#35d0ff" stroke="#fff" stroke-width="2"/>
+      </svg>
+      <div class="abs" style="left:12px;top:12px"><span class="chip warn" style="background:rgba(0,0,0,.7)"><b class="num" style="font-size:12px">6.1</b> km to go</span></div>
+      <div class="abs" style="right:6px;top:70px;width:3px;height:56px;border-radius:3px;background:rgba(255,255,255,.2)"><div style="margin-top:14px;height:20px;background:#fff;border-radius:3px"></div></div>
+      <div class="abs bar">
+        <div><div class="num" style="font-size:26px;color:var(--amber);line-height:1">5:12</div><div class="unit">/km</div></div>
+        <div style="text-align:right"><div class="num" style="font-size:18px;line-height:1"><span style="color:var(--red)">♥</span> 148</div><div class="unit">32:18</div></div>
+      </div>
+    </div>
+    <div class="cap"><b>Map page.</b> Route ahead in amber, traveled part dimmed. Crown zooms. Swipe for the metrics page.</div>
+  </div>
+
+  <div class="fig">
+    <div class="watch" style="padding:16px 14px">
+      <div class="unit" style="margin-top:2px">ELAPSED</div>
+      <div class="num" style="font-size:42px;line-height:1;margin-bottom:8px">32:18</div>
+      <div style="display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:8px">
+        <div><div class="unit">PACE</div><div class="num" style="font-size:26px;color:var(--amber);line-height:1">5:12</div></div>
+        <div style="text-align:right"><div class="unit">DISTANCE</div><div class="num" style="font-size:26px;line-height:1">6.21<span class="unit"> km</span></div></div>
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:center;border-top:1px solid #222;padding-top:8px">
+        <div class="num" style="font-size:18px"><span style="color:var(--red)">♥</span> 148</div>
+        <div class="num" style="font-size:12px;color:var(--mint);white-space:nowrap">↑62 m</div>
+        <div class="num" style="font-size:12px;color:var(--dim);white-space:nowrap">3.9 left</div>
+      </div>
+    </div>
+    <div class="cap"><b>Metrics page.</b> Big, glanceable numbers. Which fields show is configurable on the phone.</div>
+  </div>
+
+  <div class="fig">
+    <div class="watch">
+      <svg class="map" viewBox="0 0 190 230" preserveAspectRatio="xMidYMid slice">
+        <use href="#base" width="190" height="230"/>
+        <rect width="190" height="230" fill="rgba(0,0,0,.35)"/>
+        <path d="M30 210 V120 H80" fill="none" stroke="#6b4f0d" stroke-width="4.5" stroke-linejoin="round" stroke-linecap="round"/>
+        <path d="M80 120 V90 H130 V40 H170" fill="none" stroke="#000" stroke-width="8" stroke-linejoin="round" stroke-linecap="round"/>
+        <path d="M80 120 V90 H130 V40 H170" fill="none" stroke="#ffb627" stroke-width="4.5" stroke-linejoin="round" stroke-linecap="round"/>
+        <circle cx="64" cy="120" r="9" fill="rgba(53,208,255,.25)"/>
+        <circle cx="64" cy="120" r="5.5" fill="#35d0ff" stroke="#fff" stroke-width="2"/>
+      </svg>
+      <div class="abs banner"><div class="ic">↱</div><div><div class="l1">Turn right</div><div class="l2">150 m · Elm Street</div></div></div>
+      <div class="abs bar" style="padding-top:12px">
+        <div><div class="num" style="font-size:22px;color:var(--amber);line-height:1">5:12</div><div class="unit">/km</div></div>
+        <div style="text-align:right"><div class="num" style="font-size:16px;line-height:1">6.21<span class="unit"> km</span></div></div>
+      </div>
+    </div>
+    <div class="cap"><b>Turn cue.</b> A banner plus a distinct haptic tap pattern for left and right, so you rarely need to look.</div>
+  </div>
+
+  <div class="fig">
+    <div class="watch">
+      <svg class="map" viewBox="0 0 190 230" preserveAspectRatio="xMidYMid slice">
+        <use href="#base" width="190" height="230"/>
+        <path d="M30 210 V120 H80 V90 H130 V40 H170" fill="none" stroke="#000" stroke-width="8" stroke-linejoin="round" stroke-linecap="round"/>
+        <path d="M30 210 V120 H80 V90 H130 V40 H170" fill="none" stroke="#ffb627" stroke-width="4.5" stroke-linejoin="round" stroke-linecap="round"/>
+        <path d="M118 130 L130 90" stroke="#ff453a" stroke-width="2" stroke-dasharray="3 3"/>
+        <circle cx="118" cy="130" r="9" fill="rgba(53,208,255,.25)"/>
+        <circle cx="118" cy="130" r="5.5" fill="#35d0ff" stroke="#fff" stroke-width="2"/>
+      </svg>
+      <div class="abs banner red"><div class="ic">!</div><div><div class="l1">Off route</div><div class="l2">42 m · head north</div></div></div>
+      <div class="abs bar" style="padding-top:12px">
+        <div><div class="num" style="font-size:22px;color:var(--amber);line-height:1">5:30</div><div class="unit">/km</div></div>
+        <div style="text-align:right"><div class="num" style="font-size:16px;line-height:1">7.04<span class="unit"> km</span></div></div>
+      </div>
+    </div>
+    <div class="cap"><b>Off route.</b> Fires after you stray past a set distance (default 30 m). The dashed line points back to the nearest part of the route.</div>
+  </div>
+
+  <div class="fig">
+    <div class="watch" style="padding:14px">
+      <div style="display:flex;align-items:center;gap:6px;margin-top:2px"><span style="width:18px;height:18px;border-radius:50%;background:var(--mint);color:#04210f;display:grid;place-items:center;font-size:11px;font-weight:900">✓</span><span style="font-size:12px;font-weight:700;color:var(--mint)">Run complete</span></div>
+      <div class="num" style="font-size:38px;line-height:1.05;margin-top:6px">10.21<span class="unit" style="font-size:13px"> km</span></div>
+      <div style="display:flex;gap:12px;margin:4px 0 8px">
+        <div><div class="num" style="font-size:14px">54:12</div><div class="unit">time</div></div>
+        <div><div class="num" style="font-size:14px;color:var(--amber)">5:18</div><div class="unit">/km</div></div>
+        <div><div class="num" style="font-size:14px">↑84</div><div class="unit">m</div></div>
+      </div>
+      <div style="height:70px;border-radius:14px;overflow:hidden">
+        <svg viewBox="20 30 160 190" preserveAspectRatio="xMidYMid slice" style="width:100%;height:100%;display:block"><use href="#base" width="190" height="230"/><use href="#routeFull" width="190" height="230"/></svg>
+      </div>
+      <div class="unit" style="text-align:center;margin-top:6px">Saved to Health</div>
+    </div>
+    <div class="cap"><b>Summary.</b> The same workout and route also appear in Apple Fitness.</div>
+  </div>
+</div>
+
+<h3>iPhone companion</h3>
+<div class="row" style="grid-template-columns: repeat(3, auto); gap: 22px 16px">
+
+  <div class="fig">
+    <div class="phone">
+      <div class="notch"></div>
+      <div class="top"><h2>Routes</h2><div class="plus">+</div></div>
+      <div class="card"><div class="th"><svg viewBox="20 40 150 150" preserveAspectRatio="xMidYMid slice"><use href="#base" width="190" height="230"/><use href="#routeFull" width="190" height="230"/></svg></div>
+        <div><div class="nm">Riverside 10K</div><div class="mt">10.2 km · ↑ 84 m</div><span class="chip ok">On watch</span></div></div>
+      <div class="card"><div class="th"><svg viewBox="0 30 150 150" preserveAspectRatio="xMidYMid slice"><use href="#base" width="190" height="230"/><use href="#routeFull" width="190" height="230"/></svg></div>
+        <div><div class="nm">Forest loop</div><div class="mt">14.8 km · ↑ 210 m</div><span class="chip warn">Loading 62%</span></div></div>
+      <div class="card"><div class="th"><svg viewBox="40 60 150 150" preserveAspectRatio="xMidYMid slice"><use href="#base" width="190" height="230"/><use href="#routeFull" width="190" height="230"/></svg></div>
+        <div><div class="nm">Long Sunday</div><div class="mt">21.1 km · ↑ 130 m</div><span class="chip">No map yet</span></div></div>
+      <div class="cta2" style="margin-top:auto">Import GPX file…</div>
+    </div>
+    <div class="cap"><b>Library.</b> Import from Files, AirDrop or the share sheet. Each route shows whether its offline map is on the watch.</div>
+  </div>
+
+  <div class="fig">
+    <div class="phone" style="padding:0 0 12px">
+      <div class="notch" style="z-index:2"></div>
+      <div style="height:190px;position:relative">
+        <svg viewBox="0 20 190 190" preserveAspectRatio="xMidYMid slice" style="width:100%;height:100%;display:block">
+          <use href="#base" width="190" height="230"/>
+          <path d="M30 210 V120 H80 V90 H130 V40 H170" fill="none" stroke="#ffb627" stroke-opacity=".14" stroke-width="30" stroke-linejoin="round" stroke-linecap="round"/>
+          <use href="#routeFull" width="190" height="230"/>
+          <circle cx="30" cy="210" r="4" fill="#32d583" stroke="#fff" stroke-width="1.5"/>
+          <circle cx="170" cy="40" r="4" fill="#ff453a" stroke="#fff" stroke-width="1.5"/>
+        </svg>
+      </div>
+      <div style="padding:0 12px;display:flex;flex-direction:column;gap:8px;flex:1">
+        <div style="font-size:17px;font-weight:800;letter-spacing:-.02em;margin-top:4px">Riverside 10K</div>
+        <div class="stat"><div><b>10.2 km</b>distance</div><div><b>↑ 84 m</b>climb</div><div><b>54 min</b>est.</div></div>
+        <svg viewBox="0 0 180 34" style="width:100%;height:34px"><path d="M0 28 C20 26,30 14,50 16 S80 4,100 10 S140 26,180 18 L180 34 L0 34Z" fill="rgba(255,182,39,.16)"/><path d="M0 28 C20 26,30 14,50 16 S80 4,100 10 S140 26,180 18" fill="none" stroke="#ffb627" stroke-width="1.5"/></svg>
+        <div class="set" style="background:var(--card);border-radius:12px"><span>Corridor</span><span class="v">1.5 km · 6.4 MB</span></div>
+        <div class="cta">Send to Apple Watch</div>
+      </div>
+    </div>
+    <div class="cap"><b>Route detail.</b> Shaded band = the area that gets downloaded for offline use. Size shown before sending.</div>
+  </div>
+
+  <div class="fig">
+    <div class="phone">
+      <div class="notch"></div>
+      <h2>Settings</h2>
+      <div class="grp">
+        <div class="set"><span>Units</span><div class="seg"><span class="on">km</span><span>mi</span></div></div>
+        <div class="set"><span>Off-route alert</span><span class="v">30 m</span></div>
+        <div class="set"><span>Turn cues</span><div class="tog"></div></div>
+        <div class="set"><span>Haptics</span><div class="tog"></div></div>
+        <div class="set"><span>Auto-pause</span><div class="tog" style="background:#3a434b"></div></div>
+      </div>
+      <div class="grp">
+        <div class="set"><span>Metrics page</span><span class="v">Pace · Dist · ♥ ›</span></div>
+        <div class="set"><span>Map style</span><span class="v">Dark ›</span></div>
+        <div class="set"><span>Storage on watch</span><span class="v">38 MB ›</span></div>
+      </div>
+      <div style="font-size:9px;color:var(--dim);margin-top:auto;line-height:1.4">Map data © OpenStreetMap contributors</div>
+    </div>
+    <div class="cap"><b>Settings.</b> Sync to the watch automatically. Units are a setting, as you asked.</div>
+  </div>
+</div>
+
+<h3>Map style: built to be read mid-stride</h3>
+<div class="swatches">
+  <div class="sw"><i style="background:#0f1418"></i>Land</div>
+  <div class="sw"><i style="background:#0c2236"></i>Water</div>
+  <div class="sw"><i style="background:#10221a"></i>Parks</div>
+  <div class="sw"><i style="background:#33414a"></i>Main roads</div>
+  <div class="sw"><i style="background:#1f2a31"></i>Side streets</div>
+  <div class="sw"><i style="background:#3f6b4c"></i>Trails</div>
+  <div class="sw"><i style="background:#ffb627"></i>Your route</div>
+  <div class="sw"><i style="background:#35d0ff"></i>You</div>
+  <div class="sw"><i style="background:#ff453a"></i>Off route</div>
+</div>
+<p class="note">The base map is deliberately quiet: dark and low-contrast, so the amber route and your position are what you see at a glance. It saves battery on OLED, and the few map layers are cheap to draw. This is a first sketch of the idea, not a final design. Colors, fonts and layout can all change.</p>
+
+</div>
+</body>
+</html>
