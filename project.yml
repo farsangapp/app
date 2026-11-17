@@ -91,3 +91,10 @@ schemes:
     run:
       config: Debug
       executable: Farsang
+  FarsangWatch:
+    build:
+      targets:
+        FarsangWatch: all
+    run:
+      config: Debug
+      executable: FarsangWatch
