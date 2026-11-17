@@ -45,6 +45,12 @@ pipeline, M6 Polish, M7 Release.
   append-only; use `removeBlockedBy` / `removeBlocks` / `removeRelatedTo` to
   clear edges).
 
+## Agent-owned tickets
+
+The factory acts as the owner's Linear account, so the `agent-claimed` label
+(added at claim, removed on release) marks which tickets the agents own. See
+`docs/agents/autonomous-worker.md`.
+
 ## Size labels
 
 Every ticket carries one of `size:trivial`, `size:medium`, `size:complex`. The

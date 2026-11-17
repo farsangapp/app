@@ -82,10 +82,15 @@ Modeled on an earlier agent-driven iOS project: `docs/agents/` files (`author.md
 Resolved 2026-11-17: v4 watch design accepted; org `farsangapp` and repo `farsangapp/app` created; bot is `amin4mej`; Linear workspace and team `FAR` created and the Linear MCP server connected (user scope); `gh` logged in as the bot; watchOS simulator installed; test watch is Series 7 on watchOS 26 with iOS 27 (deployment targets stay watchOS 11+ / iOS 18+); model tiers confirmed (all three available in T3 Code).
 
 Still open:
+0. Linear: `In Review` status added. The factory uses the owner's Linear account for now; the `agent-claimed` label marks agent-owned tickets. A separate bot user is a later option.
 1. Install CodeRabbit on `farsangapp` (user said later).
 2. Decide whether to adopt a "no comments in code" rule.
 3. Give feedback on the iPhone screens (the sketch is still the first round).
 4. Verify during the hand dry-run that `watch_pull_request` wakes correctly inside a scheduled run's thread (otherwise fall back to a polling shepherd).
 
 ## Next
-Done: `AGENTS.md` and `docs/agents/{issue-tracker,triage-labels,domain}.md` (Matt Pocock skills setup, Linear tracker, default labels). Next: write the factory docs (`author.md`, `shepherd.md`, `autonomous-worker.md`) and CI workflows, create the Linear labels, break M0-M7 into Linear tickets (with size labels, priorities, blockers), then dry-run one ticket by hand before scheduling anything.
+Done: `AGENTS.md`, `docs/agents/*`, CI workflows, Linear labels, projects M0-M7 and 63 tickets (FAR-5 to FAR-67, with size labels, priorities and blockers), repo settings (auto-merge, squash only, ruleset on `main`).
+
+To do, in order:
+1. FAR-5: put the docs, workflows and `.gitignore` into `main` through a PR from `far-5-add-factory-docs-and-ci`.
+2. Dry-run one ticket by hand (FAR-6 is first in the queue), then schedule the author alone (see `docs/agents/autonomous-worker.md`).
