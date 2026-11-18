@@ -13,11 +13,18 @@ Before anything else, read `docs/agents/issue-tracker.md` and
 
 ```
 list_issues: team "FAR", label "agent-claimed", state "In Review"
+list_issues: team "FAR", label "agent-claimed", state "In Progress"
 ```
 
-If any ticket is `In Review`, a PR of yours is still open: report "PR open, not
-starting new work" and stop. This keeps one PR in flight while the factory is
-new. (Remove this rule only when the owner says so.)
+Count the tickets in both lists: each is a PR open or being written. If the
+count is **10 or more**, report "10 PRs in flight, not starting new work" and
+stop. The limit is 10 open PRs at once (the owner's setting; change it only when
+the owner says so).
+
+Parallel PRs can conflict, so when you pick a ticket in step 1, prefer one that
+does not touch the same files as an open PR (check the open PRs' changed files
+with `gh pr list --json number,files`). Step 6 handles any conflict that still
+happens.
 
 Also call `orchestrator_capabilities` once in this thread, before the first
 `delegate_task`, and keep the result for step 3.

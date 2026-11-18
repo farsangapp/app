@@ -41,8 +41,9 @@ Rules:
 1. Dry-run one ticket by hand, following `author.md` step by step in a normal
    thread. Confirm that a watched PR wakes the thread on a review comment and on
    failed checks.
-2. Turn on **author alone**, on a slow interval (60 minutes), with **at most one
-   open PR** at a time (`author.md` step 0 enforces it).
+2. Turn on **author alone**, on a slow interval (60 minutes). It started with
+   one open PR at a time; the limit is now **10 open PRs** (`author.md` step 0
+   enforces it).
 3. Add the shepherd once the author has had clean runs.
 4. Raise cadence only after several clean runs in a row.
 

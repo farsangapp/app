@@ -17,7 +17,7 @@ A standalone Apple Watch running app with a good UI and offline maps, plus an iP
 | Apple account | Start with a free account. Enroll ($99/yr) when ready for TestFlight. |
 | GitHub | Org `farsangapp`, repo `farsangapp/app`. Shared bot account `amin4mej` (used across projects), added to the repo. Repo is **public**, so macOS CI minutes are free. |
 | Linear | New workspace, created after the name (now chosen). |
-| Approval | At first the owner approves every PR. Automatic merge comes later. |
+| Approval | The first PRs were meant for owner approval, but CodeRabbit's approval satisfies the ruleset, so PRs it approves merge on their own once checks pass. |
 | PR review | CodeRabbit. Free on public repos. No star minimum found in CodeRabbit's own pages (an earlier note claimed repos under 10 stars need a manual trigger; unconfirmed). If the first PR gets no automatic review, the author task posts `@coderabbitai review`. |
 | Model tiers | Trivial: best OpenCode model (start with DeepSeek V4 Pro). Medium: Claude Sonnet 5.5. Complex: Claude Opus 5.5. Label tickets `size:trivial`, `size:medium`, `size:complex`. A tier that fails twice escalates one tier, then goes `ready-for-human`. If a provider is unavailable, stop and report, never silently switch. |
 
@@ -70,7 +70,7 @@ Modeled on an earlier agent-driven iOS project: `docs/agents/` files (`author.md
 - Scheduled runs only fire while the Mac is on and T3 Code is running. Xcode 27 is installed on an external drive, which must be mounted.
 - Linear MCP server is added at user scope (`linear-server`). For unattended runs, prefer an API key in an `Authorization: Bearer` header over the browser sign-in.
 - Planned T3-native shape: the author claims one ticket, delegates implementation with `delegate_task` (`isolation: worktree`, model by size label), then links and watches the PR itself with `watch_pull_request` and handles review feedback when woken. The shepherd shrinks to an optional janitor (merged worktrees, stuck tickets). Linear's GitHub integration can mark tickets Done on merge. Later option: a webhook schedule fired by Linear instead of polling.
-- Order of turning it on: author alone on a slow interval with one open PR max, then add shepherd, raise cadence only after clean runs. Kill switch: disable the scheduled tasks.
+- Order of turning it on: author alone on a slow interval (first with one open PR max, now up to 10), then add shepherd, raise cadence only after clean runs. CodeRabbit's approval satisfies the ruleset's one required review, so a PR merges without the owner when CodeRabbit approves it. Kill switch: disable the scheduled tasks.
 
 ## Environment notes
 - Xcode 27.0 (27A266a) selected, from the external drive. `xcodegen` installed via Homebrew.
