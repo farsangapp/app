@@ -15,7 +15,8 @@ public struct RunSnapshot: Sendable, Hashable {
     public let elapsedTime: TimeInterval
     public let distance: Distance
     public let averagePace: Pace?
-    /// Pace over the last rolling distance (1 km by default). Nil until that much distance is covered.
+    /// Pace over the last rolling distance (1 km by default). Nil until that much distance is covered by fixes
+    /// captured at or before this snapshot's elapsed time.
     public let rollingPace: Pace?
     public let currentHeartRate: Double?
     public let currentZone: HeartRateZone?
@@ -230,7 +231,7 @@ public struct RunTracker: Sendable {
     /// fix delivered after a later lifecycle date keeps its own time. The date is never before the period start, so
     /// the result is never negative. It is forced to be at least the previous trail point's time, since
     /// `rollingPace` interpolates between neighbors. A fix captured after the clock can lie ahead of a snapshot's
-    /// elapsed time; `rollingPace` bounds the window start to that time.
+    /// elapsed time; `rollingPace` leaves such fixes out until a snapshot reaches their time.
     private func trailElapsed(at date: Date) -> TimeInterval {
         guard let periodStart else { return accumulatedElapsed }
         let captured = accumulatedElapsed + max(date.timeIntervalSince(periodStart), 0)
@@ -268,15 +269,21 @@ public struct RunTracker: Sendable {
         }
     }
 
-    /// Time since the window started, measured to `elapsed` so the pace slows while standing still or without a fix.
+    /// Pace over the last window of distance, using only fixes captured at or before the snapshot's elapsed time, so a
+    /// fix that arrives later in the trail cannot establish a window the snapshot could not have seen. The window ends
+    /// at the latest such fix and its start is interpolated between two such fixes. Time is measured from the start
+    /// to `elapsed`, so the pace slows while standing still or without a fix. Nil until the window is established.
     private func rollingPace(elapsed now: TimeInterval) -> Pace? {
         let window = configuration.rollingDistance
-        guard window.meters > 0, totalMeters >= window.meters else { return nil }
-        let target = totalMeters - window.meters
-        guard let index = trail.lastIndex(where: { $0.meters <= target }) else { return nil }
+        guard window.meters > 0 else { return nil }
+        // Trail times never decrease, so the fixes up to the snapshot are a prefix.
+        let known = trail.prefix(while: { $0.elapsed <= now })
+        guard let latest = known.last, latest.meters >= window.meters else { return nil }
+        let target = latest.meters - window.meters
+        guard let index = known.lastIndex(where: { $0.meters <= target }) else { return nil }
         let before = trail[index]
         var startElapsed = before.elapsed
-        if index + 1 < trail.count {
+        if index + 1 < known.count {
             let after = trail[index + 1]
             let fraction = (target - before.meters) / (after.meters - before.meters)
             startElapsed += fraction * (after.elapsed - before.elapsed)

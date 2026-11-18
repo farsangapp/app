@@ -53,4 +53,33 @@ struct RunTrackerTrailTests {
         let pace = try #require(tracker.snapshot(at: at(70)).rollingPace)
         #expect(pace.secondsPerKilometer > 0)
     }
+
+    @Test func fixCapturedAfterTheSnapshotDoesNotEstablishTheWindow() throws {
+        var configuration = RunTracker.Configuration(heartRateZones: HeartRateZones(maxHeartRate: 200))
+        configuration.rollingDistance = Distance(meters: 100)
+        var tracker = RunTracker(configuration: configuration)
+        tracker.start(at: at(0))
+        tracker.add(location(at: 0, meters: 0))
+        tracker.add(location(at: 20, meters: 120))
+
+        // By 10 s only the 0 m fix exists, so the 100 m window is not established yet.
+        #expect(tracker.snapshot(at: at(10)).rollingPace == nil)
+        // At 20 s the window starts at 20 m, reached 20/120 of the way through the 20 s leg.
+        let pace = try #require(tracker.snapshot(at: at(20)).rollingPace)
+        #expect(abs(pace.secondsPerKilometer - (20 - 20.0 / 6) * 10) < 0.01)
+    }
+
+    @Test func rollingPaceIgnoresFixesCapturedAfterTheSnapshot() throws {
+        var configuration = RunTracker.Configuration(heartRateZones: HeartRateZones(maxHeartRate: 200))
+        configuration.rollingDistance = Distance(meters: 100)
+        var tracker = RunTracker(configuration: configuration)
+        tracker.start(at: at(0))
+        tracker.add(location(at: 0, meters: 0))
+        tracker.add(location(at: 10, meters: 100))
+        tracker.add(location(at: 30, meters: 200))
+
+        // At 20 s the latest fix known is 100 m at 10 s, so the window runs from the 0 m fix at 0 s to the snapshot.
+        let pace = try #require(tracker.snapshot(at: at(20)).rollingPace)
+        #expect(abs(pace.secondsPerKilometer - 200) < 0.01)
+    }
 }
