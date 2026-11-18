@@ -51,10 +51,12 @@ the recently finished ones:
 list_issues: team "FAR", label "agent-claimed", state "Done", updatedAt "-P3D"
 ```
 
-For each, look in `git worktree list` for a worktree or local branch named after
-the ticket (`far-<n>-...`). If one exists, run the same cleanup as for a merged
-PR above (worktree, then local branch with the tip check). Skip tickets with no
-leftover worktree or branch.
+For each, look in `git worktree list` for a worktree named after the ticket
+(`far-<n>-...`) and in `git branch --list "far-<n>-*"` for a local branch. If
+either exists, run the same cleanup as for a merged PR above (worktree, then
+local branch with the tip check). Skip tickets with no leftover worktree or
+branch. If this cleanup fails, the ticket stays `Done`: comment what failed and
+open the failure ticket below, but do not change the ticket's state or labels.
 
 ## 1. Rescue stuck tickets
 
@@ -88,6 +90,8 @@ If anything in steps 0-2 fails:
 - `save_comment` on the ticket: what broke, what you tried, the exact error.
 - Open a failure ticket titled `Worker failure: <issue-id>` labeled
   `ready-for-human`, linked from that comment.
+- A ticket that is already `Done` (merged-before-the-shepherd cleanup) always
+  stays `Done`, whether the failure is transient or permanent.
 - The ticket already has an open PR, so do not put it back on `ready-for-agent`.
   Transient: leave it `In Review`. Permanent: comment what is blocked,
   `addLabels ["ready-for-human"]`, `removeLabels ["agent-claimed"]`,
