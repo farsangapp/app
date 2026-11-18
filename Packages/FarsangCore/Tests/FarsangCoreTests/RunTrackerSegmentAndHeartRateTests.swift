@@ -195,6 +195,17 @@ struct RunTrackerHeartRateTests {
         #expect(resumed.timeInZone[.two] == 5)
     }
 
+    @Test func resumeBeforeThePauseDateDoesNotOverlapZoneCredit() {
+        var tracker = makeTracker(maxHeartRate: 200)
+        tracker.start(at: at(0))
+        tracker.add(heartRate(at: 0, 130))
+        tracker.pause(at: at(20))
+        tracker.resume(at: at(5))
+        tracker.add(heartRate(at: 5, 130))
+        tracker.add(heartRate(at: 8, 130))
+        #expect(tracker.snapshot(at: at(8)).timeInZone[.two] == 8)
+    }
+
     @Test func ignoresDroppedSensorReadings() {
         var tracker = makeTracker()
         tracker.start(at: at(0))

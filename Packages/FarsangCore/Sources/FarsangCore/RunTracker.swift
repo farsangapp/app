@@ -89,6 +89,7 @@ public struct RunTracker: Sendable {
     private var heart: HeartRateTracker
     private var accumulatedElapsed: TimeInterval = 0
     private var periodStart: Date?
+    private var pausedAt: Date?
     private var totalMeters = 0.0
     private var trail: [TrailPoint] = []
     private var completedSegments: [SegmentStats] = []
@@ -111,13 +112,15 @@ public struct RunTracker: Sendable {
     public mutating func pause(at date: Date) {
         guard state == .running else { return }
         closePeriod(at: date)
+        pausedAt = date
         state = .paused
     }
 
     public mutating func resume(at date: Date) {
         guard state == .paused else { return }
         state = .running
-        periodStart = date
+        // Resuming before the pause date would count the overlap twice.
+        periodStart = max(date, pausedAt ?? date)
         filter.reset()
     }
 

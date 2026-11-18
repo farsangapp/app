@@ -202,6 +202,38 @@ struct LocationFilterTests {
         }
     }
 
+    @Test func staleCandidateDoesNotBecomeTheResyncAnchor() {
+        var filter = LocationFilter()
+        _ = filter.process(location(at: 0, meters: 0))
+        for second in 10...13 {
+            #expect(filter.process(location(at: Double(second), meters: 5_000)) == .rejected(.jump))
+        }
+        // Older than the rejected jumps, so it must not be adopted as the new reference point.
+        #expect(filter.process(location(at: 1, meters: 1_000)) == .rejected(.jump))
+        // A newer candidate still completes the resync.
+        #expect(filter.process(location(at: 14, meters: 5_000)) == .anchored)
+    }
+
+    @Test func rejectedFutureJumpStaysBlockedAfterLaterFixesAreAdopted() {
+        var filter = LocationFilter()
+        _ = filter.process(location(at: 0, meters: 0))
+        #expect(filter.process(location(at: 1_000, meters: 50_000)) == .rejected(.jump))
+        guard case .accepted = filter.process(location(at: 2, meters: 4)) else {
+            Issue.record("expected an accepted fix")
+            return
+        }
+        for second in 3...6 {
+            #expect(filter.process(location(at: Double(second), meters: 50_000)) == .rejected(.jump))
+        }
+        #expect(filter.process(location(at: 7, meters: 50_000)) == .anchored)
+        // The rejected fix must not be accepted when it is delivered again.
+        #expect(filter.process(location(at: 1_000, meters: 50_000)) == .rejected(.outOfOrder))
+        guard case .accepted = filter.process(location(at: 8, meters: 50_003)) else {
+            Issue.record("expected an accepted fix")
+            return
+        }
+    }
+
     @Test func resetForgetsTheLatestTimestamp() {
         var filter = LocationFilter()
         _ = filter.process(location(at: 50, meters: 0))

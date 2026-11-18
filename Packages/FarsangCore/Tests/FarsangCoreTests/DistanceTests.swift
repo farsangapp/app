@@ -24,7 +24,8 @@ struct CoordinateRoundingTests {
         #expect(abs(meters - 6_371_000 * .pi) < 1)
         let north = Coordinate(latitude: 90, longitude: 0).distance(to: Coordinate(latitude: -90, longitude: 0)).meters
         #expect(north.isFinite)
-        // Exact antipodes whose unclamped half-chord term rounds to 1 + 2.2e-16, so only the clamp keeps this finite.
+        // Exact antipodes. Where rounding pushes the unclamped half-chord term above 1 (it does for this pair in
+        // local debug and release builds, but that is target-dependent), only the clamp keeps this finite.
         let overshoot = Coordinate(latitude: -63, longitude: 0).distance(to: Coordinate(latitude: 63, longitude: -180))
         #expect(overshoot.meters.isFinite)
         #expect(abs(overshoot.meters - 6_371_000 * .pi) < 1)

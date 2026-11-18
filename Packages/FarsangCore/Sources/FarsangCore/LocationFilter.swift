@@ -36,9 +36,13 @@ public struct LocationFilter: Sendable {
     /// Timestamp of the newest fix that became the anchor or was accepted. Rejected jumps never move it, so a jump
     /// candidate with a far-future timestamp cannot make every later valid fix look out of order.
     private var latestTimestamp: Date?
-    /// Timestamps of the jump candidates rejected since the last good fix, so copies of one count once.
-    /// Cleared on every anchor change, so it never holds more than `resyncAfterConsecutiveJumps` entries.
+    /// Timestamps of rejected jump candidates, so copies of one count once and a replay cannot pass later.
+    /// Pruned on every anchor change down to entries newer than `latestTimestamp`, since older ones fail that guard.
     private var rejectedJumpTimestamps: Set<Date> = []
+    /// Distinct jump candidates rejected since the last anchor change.
+    private var jumpStreak = 0
+    /// Newest timestamp among those candidates.
+    private var newestJumpInStreak: Date?
 
     public init(configuration: Configuration = Configuration()) {
         self.configuration = configuration
@@ -59,10 +63,13 @@ public struct LocationFilter: Sendable {
 
         let moved = anchor.coordinate.distance(to: sample.coordinate)
         if moved.meters / elapsed > configuration.maxSpeed {
+            let wouldResync = jumpStreak + 1 >= configuration.resyncAfterConsecutiveJumps
+            // A candidate older than the jumps already rejected is not a trustworthy place to resync to.
+            if wouldResync, let newestJumpInStreak, sample.timestamp < newestJumpInStreak { return .rejected(.jump) }
             rejectedJumpTimestamps.insert(sample.timestamp)
-            guard rejectedJumpTimestamps.count >= configuration.resyncAfterConsecutiveJumps else {
-                return .rejected(.jump)
-            }
+            jumpStreak += 1
+            newestJumpInStreak = max(newestJumpInStreak ?? sample.timestamp, sample.timestamp)
+            guard wouldResync else { return .rejected(.jump) }
             adopt(sample)
             return .anchored
         }
@@ -75,12 +82,16 @@ public struct LocationFilter: Sendable {
         anchor = nil
         latestTimestamp = nil
         rejectedJumpTimestamps = []
+        jumpStreak = 0
+        newestJumpInStreak = nil
     }
 
     private mutating func adopt(_ sample: LocationSample) {
         anchor = sample
         latestTimestamp = sample.timestamp
-        rejectedJumpTimestamps = []
+        rejectedJumpTimestamps = rejectedJumpTimestamps.filter { $0 > sample.timestamp }
+        jumpStreak = 0
+        newestJumpInStreak = nil
     }
 
     private static func isValid(_ coordinate: Coordinate) -> Bool {
