@@ -65,6 +65,22 @@ targets:
         INFOPLIST_KEY_WKCompanionAppBundleIdentifier: dev.djawadi.farsang
         INFOPLIST_KEY_WKRunsIndependentlyOfCompanionApp: YES
 
+  # Throwaway spike for FAR-8 (docs/spikes/map-and-speech.md). Watch-only, own bundle id, never shipped:
+  # it is not part of the Farsang scheme, so it stays out of that scheme's build and archive.
+  FarsangSpike:
+    type: application
+    platform: watchOS
+    sources:
+      - Apps/Spike
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: dev.djawadi.farsang.spike
+        TARGETED_DEVICE_FAMILY: "4"
+        INFOPLIST_KEY_CFBundleDisplayName: Farsang Spike
+        INFOPLIST_KEY_WKApplication: YES
+        INFOPLIST_KEY_WKWatchOnly: YES
+        INFOPLIST_KEY_NSLocationWhenInUseUsageDescription: Shows your position on the map for the offline map test.
+
 schemes:
   Farsang:
     build:
@@ -98,3 +114,10 @@ schemes:
     run:
       config: Debug
       executable: FarsangWatch
+  FarsangSpike:
+    build:
+      targets:
+        FarsangSpike: all
+    run:
+      config: Debug
+      executable: FarsangSpike
