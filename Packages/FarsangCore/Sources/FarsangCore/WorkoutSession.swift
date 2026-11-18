@@ -64,14 +64,21 @@ public struct Segment: Sendable, Hashable {
     }
 }
 
-/// A stretch of time the workout was paused. `end` is nil while the pause is still open.
+/// A stretch of time the workout was paused. `duration` is nil while the pause is still open.
+///
+/// The duration is measured on the monotonic clock, so it is right even when the wall clock was
+/// changed during the pause; `start` is the wall date the pause was observed at.
 public struct PauseInterval: Sendable, Hashable {
     public let start: Date
-    public internal(set) var end: Date?
+    public internal(set) var duration: TimeInterval?
 
-    public init(start: Date, end: Date? = nil) {
+    /// Where the pause ends on the wall timeline, `start` plus the measured duration. It is never
+    /// before `start`, and it can differ from the wall date the resume was observed at.
+    public var end: Date? { duration.map { start.addingTimeInterval($0) } }
+
+    public init(start: Date, duration: TimeInterval? = nil) {
         self.start = start
-        self.end = end
+        self.duration = duration
     }
 }
 
@@ -82,11 +89,14 @@ public struct PauseInterval: Sendable, Hashable {
 /// `WorkoutSessionError.invalidTransition` and leaves the session unchanged. Segments can only be
 /// marked while running, and `ended` is terminal.
 ///
-/// Timestamps come from the wall clock, which can be set back mid-workout. A pause is measured on
-/// the monotonic uptime instead, so its recorded interval is never reversed and keeps its length:
-/// the recorded end is the start plus the monotonic duration, and the resume or end timestamp is
-/// never earlier than that. Times measured from the wall clock around such a rollback are still only
-/// as good as the wall clock.
+/// Two timelines. The wall clock can be set mid-workout, so the live values (`elapsedTime` and
+/// `movingTime`) and the length of every pause come from the monotonic uptime alone: a clock change
+/// in either direction cannot stall, shift or rescale them. The wall dates (`startedAt`, `endedAt`,
+/// segment and pause starts, and the timestamps in notices) are what the wall clock showed when the
+/// event was accepted, kept for display and for matching other data. The `at:` queries read those
+/// wall dates, so after a clock change they are only as good as the wall clock; each pause covers
+/// its start plus its measured duration there, and pauses that overlap on the wall timeline count
+/// once.
 public struct WorkoutSession: Sendable {
     public private(set) var state: WorkoutSessionState = .idle
     public private(set) var startedAt: Date?
@@ -95,7 +105,9 @@ public struct WorkoutSession: Sendable {
     public private(set) var pauses: [PauseInterval] = []
 
     private let clock: any WorkoutClock
-    /// The monotonic uptime at which the open pause began, if one is open.
+    private var startUptime: TimeInterval?
+    private var endUptime: TimeInterval?
+    /// The uptime at which the open pause began, if one is open.
     private var openPauseUptime: TimeInterval?
 
     public init(clock: any WorkoutClock = SystemWorkoutClock()) {
@@ -104,30 +116,43 @@ public struct WorkoutSession: Sendable {
 
     public var segmentCount: Int { segments.count }
 
-    /// Time since the start, paused time included, as of the clock's current time. Fixed once ended.
-    public var elapsedTime: TimeInterval { elapsedTime(at: endedAt ?? clock.now()) }
-
-    /// Time since the start without paused time, as of the clock's current time. Fixed while paused
-    /// and once ended, so a wall-clock change cannot move it without an event.
-    public var movingTime: TimeInterval {
-        movingTime(at: endedAt ?? pauses.last(where: { $0.end == nil })?.start ?? clock.now())
+    /// Time since the start, paused time included, on the monotonic clock. Fixed once ended.
+    public var elapsedTime: TimeInterval {
+        guard let startUptime else { return 0 }
+        return max(0, (endUptime ?? clock.uptime()) - startUptime)
     }
 
-    /// Time since the start, paused time included. Stops growing once ended.
+    /// Time since the start without paused time, on the monotonic clock. Fixed while paused and once
+    /// ended, and it resumes counting the moment the session resumes.
+    public var movingTime: TimeInterval {
+        guard let startUptime else { return 0 }
+        let reference = endUptime ?? clock.uptime()
+        let closed = pauses.reduce(0) { $0 + ($1.duration ?? 0) }
+        let open = openPauseUptime.map { max(0, reference - $0) } ?? 0
+        return max(0, reference - startUptime - closed - open)
+    }
+
+    /// Time since the start, paused time included, as of a wall date. Stops growing once ended.
     public func elapsedTime(at date: Date) -> TimeInterval {
         guard let startedAt else { return 0 }
         let reference = endedAt.map { min($0, date) } ?? date
         return max(0, reference.timeIntervalSince(startedAt))
     }
 
-    /// Time since the start without paused time. Stops growing while paused and once ended.
+    /// Time since the start without paused time, as of a wall date. Stops growing while paused and
+    /// once ended. Overlapping pauses are deducted once.
     public func movingTime(at date: Date) -> TimeInterval {
         guard let startedAt else { return 0 }
         let reference = endedAt.map { min($0, date) } ?? date
-        let paused = pauses.reduce(0) { total, pause in
-            let pauseStart = max(pause.start, startedAt)
-            let pauseEnd = min(pause.end ?? reference, reference)
-            return total + max(0, pauseEnd.timeIntervalSince(pauseStart))
+        let spans = pauses.map { (start: max($0.start, startedAt), end: min($0.end ?? reference, reference)) }
+            .filter { $0.start < $0.end }
+            .sorted { $0.start < $1.start }
+        var paused: TimeInterval = 0
+        var covered: Date?
+        for span in spans {
+            let from = covered.map { max($0, span.start) } ?? span.start
+            if span.end > from { paused += span.end.timeIntervalSince(from) }
+            covered = max(covered ?? span.end, span.end)
         }
         return max(0, reference.timeIntervalSince(startedAt) - paused)
     }
@@ -151,6 +176,7 @@ public struct WorkoutSession: Sendable {
             let now = clock.now()
             state = .running
             startedAt = now
+            startUptime = clock.uptime()
             return .started(timestamp: now)
         case (.running, .pause):
             let now = clock.now()
@@ -159,7 +185,8 @@ public struct WorkoutSession: Sendable {
             openPauseUptime = clock.uptime()
             return .paused(timestamp: now)
         case (.paused, .resume):
-            let now = closeOpenPause(at: clock.now())
+            let now = clock.now()
+            closeOpenPause(atUptime: clock.uptime())
             state = .running
             return .resumed(timestamp: now)
         case (.running, .markSegment):
@@ -167,33 +194,35 @@ public struct WorkoutSession: Sendable {
             segments.append(Segment(number: segments.count + 1, markedAt: now))
             return .segmentMarked(number: segments.count, timestamp: now)
         case (.running, .end), (.paused, .end):
-            let now = closeOpenPause(at: clock.now())
+            let now = clock.now()
+            let uptime = clock.uptime()
+            closeOpenPause(atUptime: uptime)
             state = .ended
             endedAt = now
+            endUptime = uptime
             return .ended(timestamp: now)
         default:
             throw .invalidTransition(from: state, event: event)
         }
     }
 
-    /// Closes the open pause, if any, and returns the timestamp of the event that closed it: `date`,
-    /// or the pause's end when the wall clock went back and `date` falls before it.
-    private mutating func closeOpenPause(at date: Date) -> Date {
-        guard let last = pauses.indices.last, pauses[last].end == nil, let startUptime = openPauseUptime else {
-            return date
+    /// Closes the open pause, if any, recording its measured length.
+    private mutating func closeOpenPause(atUptime uptime: TimeInterval) {
+        guard let last = pauses.indices.last, pauses[last].duration == nil, let startUptime = openPauseUptime else {
+            return
         }
-        let duration = max(0, clock.uptime() - startUptime)
-        let end = max(date, pauses[last].start.addingTimeInterval(duration))
-        pauses[last].end = end
+        pauses[last].duration = max(0, uptime - startUptime)
         openPauseUptime = nil
-        return end
     }
 }
 
 extension WorkoutSession: Equatable {
-    /// Compares the recorded state; the injected clock is not part of a session's identity.
+    /// Compares the recorded state, uptime baselines included; the injected clock is not part of a
+    /// session's identity.
     public static func == (lhs: WorkoutSession, rhs: WorkoutSession) -> Bool {
         lhs.state == rhs.state && lhs.startedAt == rhs.startedAt && lhs.endedAt == rhs.endedAt
             && lhs.segments == rhs.segments && lhs.pauses == rhs.pauses
+            && lhs.startUptime == rhs.startUptime && lhs.endUptime == rhs.endUptime
+            && lhs.openPauseUptime == rhs.openPauseUptime
     }
 }

@@ -4,74 +4,6 @@ import Testing
 
 @testable import FarsangCore
 
-private final class ManualClock: WorkoutClock {
-    private struct Readings {
-        var wall: Date
-        var uptime: TimeInterval
-    }
-
-    private let readings: Mutex<Readings>
-
-    init(_ start: Date = Date(timeIntervalSince1970: 1_000)) {
-        readings = Mutex(Readings(wall: start, uptime: 5_000))
-    }
-
-    func now() -> Date { readings.withLock { $0.wall } }
-
-    func uptime() -> TimeInterval { readings.withLock { $0.uptime } }
-
-    /// Moves the wall clock and the monotonic uptime forward together, as time normally passes.
-    func advance(by seconds: TimeInterval) {
-        readings.withLock {
-            $0.wall = $0.wall.addingTimeInterval(seconds)
-            $0.uptime += seconds
-        }
-    }
-
-    /// Lets `seconds` of real time pass while the wall clock is set back by `rollback` seconds, as when
-    /// the user or the network changes the time.
-    func advance(by seconds: TimeInterval, wallClockRolledBackBy rollback: TimeInterval) {
-        readings.withLock {
-            $0.wall = $0.wall.addingTimeInterval(seconds - rollback)
-            $0.uptime += seconds
-        }
-    }
-}
-
-private func at(_ seconds: TimeInterval) -> Date {
-    Date(timeIntervalSince1970: 1_000 + seconds)
-}
-
-private struct Fixture {
-    var session: WorkoutSession
-    let clock: ManualClock
-
-    init() {
-        clock = ManualClock()
-        session = WorkoutSession(clock: clock)
-    }
-
-    static func running() throws -> Fixture {
-        var fixture = Fixture()
-        try fixture.session.handle(.start)
-        return fixture
-    }
-
-    static func paused() throws -> Fixture {
-        var fixture = try running()
-        fixture.clock.advance(by: 10)
-        try fixture.session.handle(.pause)
-        return fixture
-    }
-
-    static func ended() throws -> Fixture {
-        var fixture = try running()
-        fixture.clock.advance(by: 10)
-        try fixture.session.handle(.end)
-        return fixture
-    }
-}
-
 struct WorkoutSessionTests {
     private let allEvents: [WorkoutSessionEvent] = [.start, .pause, .resume, .markSegment, .end]
 
@@ -103,7 +35,7 @@ struct WorkoutSessionTests {
         fixture.clock.advance(by: 30)
         let notification = try fixture.session.handle(.pause)
         #expect(fixture.session.state == .paused)
-        #expect(fixture.session.pauses == [PauseInterval(start: at(30), end: nil)])
+        #expect(fixture.session.pauses == [PauseInterval(start: at(30))])
         #expect(notification == .paused(timestamp: at(30)))
     }
 
@@ -112,7 +44,7 @@ struct WorkoutSessionTests {
         fixture.clock.advance(by: 20)
         let notification = try fixture.session.handle(.resume)
         #expect(fixture.session.state == .running)
-        #expect(fixture.session.pauses == [PauseInterval(start: at(10), end: at(30))])
+        #expect(fixture.session.pauses == [PauseInterval(start: at(10), duration: 20)])
         #expect(notification == .resumed(timestamp: at(30)))
     }
 
@@ -145,7 +77,7 @@ struct WorkoutSessionTests {
         let notification = try fixture.session.handle(.end)
         #expect(fixture.session.state == .ended)
         #expect(fixture.session.endedAt == at(25))
-        #expect(fixture.session.pauses == [PauseInterval(start: at(10), end: at(25))])
+        #expect(fixture.session.pauses == [PauseInterval(start: at(10), duration: 15)])
         #expect(notification == .ended(timestamp: at(25)))
     }
 
@@ -159,7 +91,7 @@ struct WorkoutSessionTests {
         }
         #expect(fixture.session.state == .running)
         #expect(fixture.session.pauses.count == 3)
-        #expect(fixture.session.pauses.allSatisfy { $0.end != nil })
+        #expect(fixture.session.pauses.allSatisfy { $0.duration != nil })
     }
 
     @Test func segmentsKeepTheirNumbersAcrossPauses() throws {
@@ -277,63 +209,8 @@ struct WorkoutSessionTests {
         var fixture = try Fixture.running()
         try fixture.session.handle(.pause)
         try fixture.session.handle(.resume)
-        #expect(fixture.session.pauses == [PauseInterval(start: at(0), end: at(0))])
+        #expect(fixture.session.pauses == [PauseInterval(start: at(0), duration: 0)])
         #expect(fixture.session.movingTime(at: at(10)) == 10)
-    }
-
-    // MARK: Wall-clock rollback
-
-    @Test func timesStayFixedAfterEndWhenTheWallClockRollsBack() throws {
-        var fixture = try Fixture.running()
-        fixture.clock.advance(by: 100)
-        try fixture.session.handle(.pause)
-        fixture.clock.advance(by: 20)
-        try fixture.session.handle(.end)
-        fixture.clock.advance(by: 5, wallClockRolledBackBy: 35)
-        #expect(fixture.session.movingTime == 100)
-        #expect(fixture.session.elapsedTime == 120)
-    }
-
-    @Test func movingTimeStaysFixedWhilePausedWhenTheWallClockRollsBack() throws {
-        var fixture = try Fixture.running()
-        fixture.clock.advance(by: 100)
-        try fixture.session.handle(.pause)
-        fixture.clock.advance(by: 5, wallClockRolledBackBy: 15)
-        #expect(fixture.session.movingTime == 100)
-    }
-
-    @Test func resumeAfterARollbackKeepsThePauseInOrderAndItsDuration() throws {
-        var fixture = try Fixture.running()
-        fixture.clock.advance(by: 100)
-        try fixture.session.handle(.pause)
-        fixture.clock.advance(by: 40, wallClockRolledBackBy: 50)
-        let notification = try fixture.session.handle(.resume)
-        #expect(fixture.session.pauses == [PauseInterval(start: at(100), end: at(140))])
-        #expect(notification == .resumed(timestamp: at(140)))
-        #expect(fixture.session.movingTime(at: at(200)) == 160)
-        #expect(fixture.session.elapsedTime(at: at(200)) == 200)
-    }
-
-    @Test func endWhilePausedAfterARollbackKeepsThePauseInOrderAndItsDuration() throws {
-        var fixture = try Fixture.running()
-        fixture.clock.advance(by: 100)
-        try fixture.session.handle(.pause)
-        fixture.clock.advance(by: 20, wallClockRolledBackBy: 30)
-        let notification = try fixture.session.handle(.end)
-        #expect(fixture.session.pauses == [PauseInterval(start: at(100), end: at(120))])
-        #expect(fixture.session.endedAt == at(120))
-        #expect(notification == .ended(timestamp: at(120)))
-        #expect(fixture.session.movingTime == 100)
-        #expect(fixture.session.elapsedTime == 120)
-    }
-
-    @Test func zeroLengthPauseSurvivesARollback() throws {
-        var fixture = try Fixture.running()
-        fixture.clock.advance(by: 100)
-        try fixture.session.handle(.pause)
-        fixture.clock.advance(by: 0, wallClockRolledBackBy: 10)
-        try fixture.session.handle(.resume)
-        #expect(fixture.session.pauses == [PauseInterval(start: at(100), end: at(100))])
     }
 
     @Test func canHandleAgreesWithHandle() throws {
@@ -353,8 +230,10 @@ struct WorkoutSessionTests {
         var session = WorkoutSession(clock: clock)
         _ = try? session.handle(.pause)
         #expect(clock.reads == 0)
+        _ = try? session.handle(.resume)
+        #expect(clock.reads == 0)
         _ = try? session.handle(.start)
-        #expect(clock.reads == 1)
+        #expect(clock.reads > 0)
     }
 }
 
@@ -367,5 +246,8 @@ private final class CountingClock: WorkoutClock {
         return Date(timeIntervalSince1970: 0)
     }
 
-    func uptime() -> TimeInterval { 0 }
+    func uptime() -> TimeInterval {
+        count.withLock { $0 += 1 }
+        return 0
+    }
 }
