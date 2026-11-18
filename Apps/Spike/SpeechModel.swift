@@ -7,7 +7,8 @@ import Observation
 final class SpeechModel: NSObject {
     static let prompt = "In 150 meters, turn right"
 
-    private let synthesizer = AVSpeechSynthesizer()
+    /// `nonisolated(unsafe)` so `deinit` can stop it; after init it is only touched from the main actor or `deinit`.
+    nonisolated(unsafe) private let synthesizer = AVSpeechSynthesizer()
     /// Utterances handed to the synthesizer that have not yet finished or been cancelled, tracked by identity.
     @ObservationIgnored private var pendingUtterances: Set<AVSpeechUtterance> = []
     @ObservationIgnored private var observers: [Task<Void, Never>] = []
@@ -38,6 +39,10 @@ final class SpeechModel: NSObject {
     deinit {
         // Dropping a Task handle does not cancel it. Cancelling ends each suspended notification loop at once.
         for observer in observers { observer.cancel() }
+        // Released with a prompt pending: no finish or cancel callback will run, so stop speech and end ducking here.
+        // Unconditional because deinit cannot read the isolated pending set; deactivating an idle session is harmless.
+        synthesizer.stopSpeaking(at: .immediate)
+        try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
     }
 
     func speak() {
