@@ -142,12 +142,64 @@ struct LocationFilterTests {
         for _ in 1...6 {
             #expect(filter.process(location(at: 1, meters: 5_000)) == .rejected(.outOfOrder))
         }
-        #expect(filter.process(location(at: 0.5, meters: 5_000)) == .rejected(.outOfOrder))
+        #expect(filter.process(location(at: 0.5, meters: 5_000)) == .rejected(.jump))
         guard case .accepted(let moved) = filter.process(location(at: 2, meters: 4)) else {
             Issue.record("expected an accepted fix")
             return
         }
         #expect(abs(moved.meters - 4) < 0.01)
+    }
+
+    @Test func duplicateJumpsDoNotAdvanceTheResyncCount() {
+        var filter = LocationFilter()
+        _ = filter.process(location(at: 0, meters: 0))
+        for second in 1...4 {
+            #expect(filter.process(location(at: Double(second), meters: 5_000)) == .rejected(.jump))
+            #expect(filter.process(location(at: Double(second), meters: 5_000)) == .rejected(.outOfOrder))
+        }
+        // Four distinct jumps so far: the duplicates must not have counted, so the fifth distinct one re-anchors.
+        #expect(filter.process(location(at: 5, meters: 5_000)) == .anchored)
+    }
+
+    @Test func resyncsOnExactlyTheFifthDistinctJump() {
+        var filter = LocationFilter()
+        _ = filter.process(location(at: 0, meters: 0))
+        #expect(filter.process(location(at: 1, meters: 5_000)) == .rejected(.jump))
+        for _ in 1...2 {
+            #expect(filter.process(location(at: 1, meters: 5_000)) == .rejected(.outOfOrder))
+        }
+        for second in 2...4 {
+            #expect(filter.process(location(at: Double(second), meters: 5_000)) == .rejected(.jump))
+        }
+        #expect(filter.process(location(at: 5, meters: 5_000)) == .anchored)
+    }
+
+    @Test func rejectedFutureJumpDoesNotBlockLaterValidFixes() {
+        var filter = LocationFilter()
+        _ = filter.process(location(at: 0, meters: 0))
+        #expect(filter.process(location(at: 1_000, meters: 50_000)) == .rejected(.jump))
+        guard case .accepted(let moved) = filter.process(location(at: 2, meters: 4)) else {
+            Issue.record("expected an accepted fix")
+            return
+        }
+        #expect(abs(moved.meters - 4) < 0.01)
+        guard case .accepted = filter.process(location(at: 3, meters: 8)) else {
+            Issue.record("expected an accepted fix")
+            return
+        }
+    }
+
+    @Test func copiesOfAFutureJumpStillCountOnce() {
+        var filter = LocationFilter()
+        _ = filter.process(location(at: 0, meters: 0))
+        #expect(filter.process(location(at: 1_000, meters: 50_000)) == .rejected(.jump))
+        for _ in 1...6 {
+            #expect(filter.process(location(at: 1_000, meters: 50_000)) == .rejected(.outOfOrder))
+        }
+        guard case .accepted = filter.process(location(at: 2, meters: 4)) else {
+            Issue.record("expected an accepted fix")
+            return
+        }
     }
 
     @Test func resetForgetsTheLatestTimestamp() {

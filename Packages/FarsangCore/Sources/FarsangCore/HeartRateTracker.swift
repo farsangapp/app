@@ -10,6 +10,8 @@ struct HeartRateTracker: Sendable {
     /// Time already credited, as intervals so a snapshot of an earlier date can leave out later credit.
     /// Contiguous intervals in the same zone merge, so this grows with zone changes and gaps, not with samples.
     private var credited: [CreditedInterval] = []
+    /// Running total of `credited` by zone, so a snapshot at or after the last interval's end skips the scan.
+    private var creditedTotals: [HeartRateZone: TimeInterval] = [:]
     private var sum = 0.0
     private var count = 0
 
@@ -67,20 +69,29 @@ struct HeartRateTracker: Sendable {
 
     /// Zone time accrued up to `date`; credit committed after `date` is left out.
     func timeInZone(at date: Date) -> [HeartRateZone: TimeInterval] {
-        var result: [HeartRateZone: TimeInterval] = [:]
-        for interval in credited {
-            let seconds = min(interval.end, date).timeIntervalSince(interval.start)
-            if seconds > 0 { result[interval.zone, default: 0] += seconds }
+        var result: [HeartRateZone: TimeInterval]
+        if let last = credited.last, date < last.end {
+            // A historical date: clip each interval to it.
+            result = [:]
+            for interval in credited {
+                let seconds = min(interval.end, date).timeIntervalSince(interval.start)
+                if seconds > 0 { result[interval.zone, default: 0] += seconds }
+            }
+        } else {
+            result = creditedTotals
         }
         if let anchor, let zone = zones.zone(for: anchor.beatsPerMinute) {
-            result[zone, default: 0] += heldDuration(of: anchor, until: date)
+            let held = heldDuration(of: anchor, until: date)
+            if held > 0 { result[zone, default: 0] += held }
         }
         return result
     }
 
     private mutating func credit(_ sample: HeartRateSample, until date: Date) {
         guard let zone = zones.zone(for: sample.beatsPerMinute) else { return }
-        let end = sample.timestamp.addingTimeInterval(heldDuration(of: sample, until: date))
+        let held = heldDuration(of: sample, until: date)
+        let end = sample.timestamp.addingTimeInterval(held)
+        if held > 0 { creditedTotals[zone, default: 0] += held }
         if let last = credited.last, last.zone == zone, last.end == sample.timestamp {
             credited[credited.count - 1].end = end
         } else {

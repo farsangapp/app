@@ -33,9 +33,12 @@ public struct LocationFilter: Sendable {
 
     public let configuration: Configuration
     private var anchor: LocationSample?
-    /// Timestamp of the newest fix that passed the accuracy and coordinate checks, so copies of a fix count once.
+    /// Timestamp of the newest fix that became the anchor or was accepted. Rejected jumps never move it, so a jump
+    /// candidate with a far-future timestamp cannot make every later valid fix look out of order.
     private var latestTimestamp: Date?
-    private var consecutiveJumps = 0
+    /// Timestamps of the jump candidates rejected since the last good fix, so copies of one count once.
+    /// Cleared on every anchor change, so it never holds more than `resyncAfterConsecutiveJumps` entries.
+    private var rejectedJumpTimestamps: Set<Date> = []
 
     public init(configuration: Configuration = Configuration()) {
         self.configuration = configuration
@@ -47,23 +50,23 @@ public struct LocationFilter: Sendable {
         }
         guard Self.isValid(sample.coordinate) else { return .rejected(.invalidCoordinate) }
         if let latestTimestamp, sample.timestamp <= latestTimestamp { return .rejected(.outOfOrder) }
-        latestTimestamp = sample.timestamp
+        if rejectedJumpTimestamps.contains(sample.timestamp) { return .rejected(.outOfOrder) }
         guard let anchor else {
-            self.anchor = sample
+            adopt(sample)
             return .anchored
         }
         let elapsed = sample.timestamp.timeIntervalSince(anchor.timestamp)
 
         let moved = anchor.coordinate.distance(to: sample.coordinate)
         if moved.meters / elapsed > configuration.maxSpeed {
-            consecutiveJumps += 1
-            guard consecutiveJumps >= configuration.resyncAfterConsecutiveJumps else { return .rejected(.jump) }
-            self.anchor = sample
-            consecutiveJumps = 0
+            rejectedJumpTimestamps.insert(sample.timestamp)
+            guard rejectedJumpTimestamps.count >= configuration.resyncAfterConsecutiveJumps else {
+                return .rejected(.jump)
+            }
+            adopt(sample)
             return .anchored
         }
-        consecutiveJumps = 0
-        self.anchor = sample
+        adopt(sample)
         return .accepted(moved)
     }
 
@@ -71,7 +74,13 @@ public struct LocationFilter: Sendable {
     public mutating func reset() {
         anchor = nil
         latestTimestamp = nil
-        consecutiveJumps = 0
+        rejectedJumpTimestamps = []
+    }
+
+    private mutating func adopt(_ sample: LocationSample) {
+        anchor = sample
+        latestTimestamp = sample.timestamp
+        rejectedJumpTimestamps = []
     }
 
     private static func isValid(_ coordinate: Coordinate) -> Bool {

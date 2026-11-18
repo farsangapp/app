@@ -239,8 +239,10 @@ struct RunTrackerLifecycleTests {
         tracker.start(at: at(0))
         tracker.add(heartRate(at: 10, 150))
         tracker.markSegment(at: at(10))
+        let afterMark = tracker.snapshot(at: at(10)).completedSegments
+        #expect(afterMark.count == 1)
         tracker.end(at: at(10))
-        #expect(tracker.snapshot(at: at(10)).completedSegments.count == 1)
+        #expect(tracker.snapshot(at: at(10)).completedSegments == afterMark)
     }
 
     @Test func ignoresSamplesBeforeStartAndAfterEnd() {

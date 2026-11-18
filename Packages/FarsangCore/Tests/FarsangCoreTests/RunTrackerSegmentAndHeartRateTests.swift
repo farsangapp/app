@@ -111,7 +111,7 @@ struct RunTrackerHeartRateTests {
         tracker.add(heartRate(at: 8, 170))
 
         #expect(tracker.snapshot(at: at(4)).timeInZone[.two] == 4)
-        #expect((tracker.snapshot(at: at(4)).timeInZone[.four] ?? 0) == 0)
+        #expect(tracker.snapshot(at: at(4)).timeInZone[.four] == nil)
         #expect(tracker.snapshot(at: at(8)).timeInZone[.two] == 8)
         #expect(tracker.snapshot(at: at(10)).timeInZone[.four] == 2)
         #expect(tracker.snapshot(at: at(-3)).timeInZone[.two] == nil)
