@@ -1,0 +1,9 @@
+<?xml version="1.0"?>
+<g:gpx version="1.1" creator="Farsang test fixture" xmlns:g="http://www.topografix.com/GPX/1/1">
+  <g:trk>
+    <g:name>Prefixed</g:name>
+    <g:trkseg>
+      <g:trkpt lat="0.0010" lon="0.0010"><g:ele>3</g:ele></g:trkpt>
+    </g:trkseg>
+  </g:trk>
+</g:gpx>

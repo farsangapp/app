@@ -1,0 +1,26 @@
+<?xml version="1.0"?>
+<gpx version="1.0" creator="Farsang test fixture" xmlns="http://www.topografix.com/GPX/1/0">
+  <name>GPX 1.0 file name</name>
+  <time>2025-01-01T07:00:00Z</time>
+  <rte>
+    <name>Test Route</name>
+    <desc>Planned route with no timestamps.</desc>
+    <rtept lat="0.0500" lon="0.0600">
+      <ele>5</ele>
+      <name>Start</name>
+    </rtept>
+    <rtept lat="0.0510" lon="0.0610"/>
+    <rtept lat="0.0520" lon="0.0620">
+      <ele>7.25</ele>
+    </rtept>
+  </rte>
+  <trk>
+    <name>Old style track</name>
+    <trkseg>
+      <trkpt lat="0.0700" lon="0.0800">
+        <ele>1</ele>
+        <time>2025-01-01T09:00:00Z</time>
+      </trkpt>
+    </trkseg>
+  </trk>
+</gpx>

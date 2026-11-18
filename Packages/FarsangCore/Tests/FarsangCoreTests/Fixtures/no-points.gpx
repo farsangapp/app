@@ -1,0 +1,6 @@
+<?xml version="1.0"?>
+<gpx version="1.1" creator="Farsang test fixture" xmlns="http://www.topografix.com/GPX/1/1">
+  <metadata><name>Empty</name></metadata>
+  <trk><name>Empty track</name><trkseg/></trk>
+  <rte><name>Empty route</name></rte>
+</gpx>

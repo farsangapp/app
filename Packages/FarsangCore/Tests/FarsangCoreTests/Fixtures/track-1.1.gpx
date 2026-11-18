@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="Farsang test fixture"
+     xmlns="http://www.topografix.com/GPX/1/1"
+     xmlns:gpxtpx="http://www.garmin.com/xmlschemas/TrackPointExtension/v1">
+  <metadata>
+    <name>Fixture file name</name>
+  </metadata>
+  <trk>
+    <name>Test Loop</name>
+    <desc>Two segments, made up near the equator.</desc>
+    <trkseg>
+      <trkpt lat="0.0010" lon="0.0020">
+        <ele>12.5</ele>
+        <time>2025-01-01T08:00:00Z</time>
+        <extensions>
+          <gpxtpx:TrackPointExtension>
+            <gpxtpx:hr>140</gpxtpx:hr>
+            <gpxtpx:name>not a point name</gpxtpx:name>
+          </gpxtpx:TrackPointExtension>
+        </extensions>
+      </trkpt>
+      <trkpt lat="0.0011" lon="0.0021">
+        <ele>13.0</ele>
+        <time>2025-01-01T08:00:05.500Z</time>
+      </trkpt>
+      <trkpt lat="0.0012" lon="0.0022"/>
+    </trkseg>
+    <trkseg>
+      <trkpt lat="-0.0030" lon="-0.0040">
+        <time>2025-01-01T08:10:00+02:00</time>
+      </trkpt>
+    </trkseg>
+  </trk>
+  <trk>
+    <trkseg>
+      <trkpt lat="0.0100" lon="0.0200"/>
+    </trkseg>
+  </trk>
+</gpx>
