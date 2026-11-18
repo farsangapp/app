@@ -41,6 +41,21 @@ gh pr view <url> --json state,mergedAt,mergeStateStatus,headRefName,headRefOid
   `removeLabels ["agent-claimed"]`, `assignee null`, state `"Todo"`.
 - **still open** (checks running, awaiting review, conflict): leave it.
 
+### Merged before the shepherd ran
+
+Linear moves a ticket to `Done` as soon as its PR merges, so a PR that merged
+between two runs is never `In Review` when this step lists tickets. Also check
+the recently finished ones:
+
+```
+list_issues: team "FAR", label "agent-claimed", state "Done", updatedAt "-P3D"
+```
+
+For each, look in `git worktree list` for a worktree or local branch named after
+the ticket (`far-<n>-...`). If one exists, run the same cleanup as for a merged
+PR above (worktree, then local branch with the tip check). Skip tickets with no
+leftover worktree or branch.
+
 ## 1. Rescue stuck tickets
 
 ```
