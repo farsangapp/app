@@ -29,8 +29,10 @@ public struct RunSnapshot: Sendable, Hashable {
 
 /// Turns a stream of location and heart-rate samples into the numbers the watch screens show.
 ///
-/// Time is always passed in, never read from a clock, so behavior is deterministic. Samples are only
-/// counted while the run is running; the first fix after a resume re-anchors and adds no distance.
+/// Time is always passed in, never read from a clock, so behavior is deterministic. Dates passed to `start`,
+/// `pause`, `resume`, `markSegment` and `end` form a monotonic clock: a date earlier than one already seen counts
+/// as that later date, so time never runs backward. Samples are only counted while the run is running; the first
+/// fix after a resume re-anchors and adds no distance.
 public struct RunTracker: Sendable {
     public struct Configuration: Sendable, Hashable {
         public var heartRateZones: HeartRateZones
@@ -89,7 +91,8 @@ public struct RunTracker: Sendable {
     private var heart: HeartRateTracker
     private var accumulatedElapsed: TimeInterval = 0
     private var periodStart: Date?
-    private var pausedAt: Date?
+    /// The latest date any lifecycle call has used.
+    private var clock = Date.distantPast
     private var totalMeters = 0.0
     private var trail: [TrailPoint] = []
     private var completedSegments: [SegmentStats] = []
@@ -106,29 +109,26 @@ public struct RunTracker: Sendable {
     public mutating func start(at date: Date) {
         guard state == .notStarted else { return }
         state = .running
-        periodStart = date
+        periodStart = tick(date)
     }
 
     public mutating func pause(at date: Date) {
         guard state == .running else { return }
-        // A pause dated before the running period began would rewind the clock, so it counts from the period start.
-        let effective = max(date, periodStart ?? date)
-        closePeriod(at: effective)
-        pausedAt = effective
+        closePeriod(at: tick(date))
         state = .paused
     }
 
     public mutating func resume(at date: Date) {
         guard state == .paused else { return }
         state = .running
-        // Resuming before the pause date would count the overlap twice.
-        periodStart = max(date, pausedAt ?? date)
+        periodStart = tick(date)
         filter.reset()
     }
 
     public mutating func end(at date: Date) {
         guard state == .running || state == .paused else { return }
-        if state == .running { closePeriod(at: date) }
+        let now = tick(date)
+        if state == .running { closePeriod(at: now) }
         closeSegment(elapsed: accumulatedElapsed, keepingZeroDurationData: true)
         state = .ended
     }
@@ -137,7 +137,7 @@ public struct RunTracker: Sendable {
     /// Ending the run closes the last segment too, so `completedSegments` holds every segment of a finished run.
     public mutating func markSegment(at date: Date) {
         guard state == .running || state == .paused else { return }
-        closeSegment(elapsed: elapsed(at: date))
+        closeSegment(elapsed: elapsed(at: tick(date)))
     }
 
     // MARK: Samples
@@ -205,9 +205,17 @@ public struct RunTracker: Sendable {
         segment = SegmentAccumulator(startElapsed: now, startMeters: totalMeters)
     }
 
+    /// Advances the clock to `date`, or leaves it where it is when `date` is earlier, and returns the result.
+    private mutating func tick(_ date: Date) -> Date {
+        clock = max(clock, date)
+        return clock
+    }
+
+    /// Time running at `date`, which is never read as earlier than the clock, so `clock >= periodStart` keeps it
+    /// from going below what a completed segment or a closed period already holds.
     private func elapsed(at date: Date) -> TimeInterval {
         guard state == .running, let periodStart else { return accumulatedElapsed }
-        return accumulatedElapsed + max(date.timeIntervalSince(periodStart), 0)
+        return accumulatedElapsed + max(date, clock).timeIntervalSince(periodStart)
     }
 
     private mutating func closePeriod(at date: Date) {

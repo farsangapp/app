@@ -177,6 +177,37 @@ struct RunTrackerPauseTests {
         tracker.pause(at: at(5))
         tracker.resume(at: at(10))
         #expect(tracker.snapshot(at: at(20)).elapsedTime == 20)
+        // The tracker is running again after the backdated pause and resume, not stuck paused.
+        let later = tracker.snapshot(at: at(35))
+        #expect(later.state == .running)
+        #expect(later.elapsedTime == 25)
+    }
+
+    @Test func backdatedPauseDoesNotUndercutACompletedSegment() throws {
+        var tracker = makeTracker()
+        tracker.start(at: at(0))
+        tracker.pause(at: at(20))
+        tracker.resume(at: at(30))
+        tracker.markSegment(at: at(40))
+        #expect(try #require(tracker.snapshot(at: at(40)).completedSegments.first).duration == 30)
+
+        // Earlier than the mark, so it counts from the mark and the run keeps at least the segment's 30 s.
+        tracker.pause(at: at(5))
+        tracker.end(at: at(50))
+        let snapshot = tracker.snapshot(at: at(50))
+        #expect(snapshot.elapsedTime == 30)
+        #expect(snapshot.completedSegments.first?.duration == 30)
+    }
+
+    @Test func backdatedMarkAndEndNeverRewindTheClock() {
+        var tracker = makeTracker()
+        tracker.start(at: at(0))
+        tracker.markSegment(at: at(40))
+        tracker.markSegment(at: at(10))
+        tracker.end(at: at(20))
+        let snapshot = tracker.snapshot(at: at(60))
+        #expect(snapshot.elapsedTime == 40)
+        #expect(snapshot.completedSegments.map(\.duration) == [40])
     }
 }
 

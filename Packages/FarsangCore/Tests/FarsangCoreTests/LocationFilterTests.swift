@@ -174,6 +174,9 @@ struct LocationFilterTests {
         #expect(filter.process(location(at: 5, meters: 5_000)) == .anchored)
     }
 
+}
+
+struct LocationFilterOutOfOrderJumpTests {
     @Test func rejectedFutureJumpDoesNotBlockLaterValidFixes() {
         var filter = LocationFilter()
         _ = filter.process(location(at: 0, meters: 0))
@@ -202,16 +205,37 @@ struct LocationFilterTests {
         }
     }
 
-    @Test func staleCandidateDoesNotBecomeTheResyncAnchor() {
+    @Test func staleCandidateRestartsTheStreakInsteadOfCompletingIt() {
         var filter = LocationFilter()
         _ = filter.process(location(at: 0, meters: 0))
         for second in 10...13 {
             #expect(filter.process(location(at: Double(second), meters: 5_000)) == .rejected(.jump))
         }
-        // Older than the rejected jumps, so it must not be adopted as the new reference point.
+        // Older than the candidates counted so far: it restarts the run of increasing candidates, so it cannot
+        // be the fifth of the old one (this replaces the earlier rule that rejected it only when it would resync).
         #expect(filter.process(location(at: 1, meters: 1_000)) == .rejected(.jump))
-        // A newer candidate still completes the resync.
-        #expect(filter.process(location(at: 14, meters: 5_000)) == .anchored)
+        #expect(filter.process(location(at: 14, meters: 5_000)) == .rejected(.jump))
+        // A new increasing run of five candidates is what completes the resync.
+        for second in 15...16 {
+            #expect(filter.process(location(at: Double(second), meters: 5_000)) == .rejected(.jump))
+        }
+        #expect(filter.process(location(at: 17, meters: 5_000)) == .anchored)
+    }
+
+    @Test func consecutiveStaleCandidatesCannotBecomeTheResyncAnchor() {
+        var filter = LocationFilter()
+        _ = filter.process(location(at: 0, meters: 0))
+        for second in 10...12 {
+            #expect(filter.process(location(at: Double(second), meters: 5_000)) == .rejected(.jump))
+        }
+        // Both predate the fixes above. The second must not count as an increasing candidate and resync.
+        #expect(filter.process(location(at: 1, meters: 1_000)) == .rejected(.jump))
+        #expect(filter.process(location(at: 2, meters: 1_000)) == .rejected(.jump))
+        // Still anchored at the origin, so a fresh fix there is accepted as movement, not rejected.
+        guard case .accepted = filter.process(location(at: 13, meters: 5)) else {
+            Issue.record("expected an accepted fix")
+            return
+        }
     }
 
     @Test func rejectedFutureJumpStaysBlockedAfterLaterFixesAreAdopted() {
@@ -238,13 +262,14 @@ struct LocationFilterTests {
         var filter = LocationFilter()
         _ = filter.process(location(at: 0, meters: 0))
         #expect(filter.process(location(at: 1_000, meters: 50_000)) == .rejected(.jump))
-        for second in 1...3 {
+        for second in 1...4 {
             #expect(filter.process(location(at: Double(second), meters: 5_000)) == .rejected(.jump))
         }
-        // The future-dated jump is the first distinct jump, so the fourth increasing fix after it is the fifth.
-        // The relocation re-anchors there instead of counting 5 km as distance.
-        #expect(filter.process(location(at: 4, meters: 5_000)) == .anchored)
-        guard case .accepted(let moved) = filter.process(location(at: 5, meters: 5_003)) else {
+        // The future-dated jump is older than nothing after it, so it starts its own run and does not count toward
+        // this one: the fifth increasing fix re-anchors instead of counting 5 km as distance. (Earlier it was
+        // counted as the first of the five.)
+        #expect(filter.process(location(at: 5, meters: 5_000)) == .anchored)
+        guard case .accepted(let moved) = filter.process(location(at: 6, meters: 5_003)) else {
             Issue.record("expected an accepted fix")
             return
         }

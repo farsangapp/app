@@ -39,10 +39,10 @@ public struct LocationFilter: Sendable {
     /// Timestamps of rejected jump candidates, so copies of one count once and a replay cannot pass later.
     /// Pruned on every anchor change down to entries newer than `latestTimestamp`, since older ones fail that guard.
     private var rejectedJumpTimestamps: Set<Date> = []
-    /// Distinct jump candidates rejected since the last anchor change.
+    /// Length of the current run of jump candidates with strictly increasing timestamps. A candidate that is not
+    /// newer than the previous one starts a new run, so stale candidates can neither extend a run nor complete a
+    /// resync, and a lone future-dated jump falls out of the way of a later run of increasing fixes.
     private var jumpStreak = 0
-    /// Timestamp of the candidate counted last. Comparing against it, not the newest, lets a lone future-dated
-    /// jump fall out of the way of a later run of increasing fixes.
     private var lastJumpInStreak: Date?
 
     public init(configuration: Configuration = Configuration()) {
@@ -64,14 +64,12 @@ public struct LocationFilter: Sendable {
 
         let moved = anchor.coordinate.distance(to: sample.coordinate)
         if moved.meters / elapsed > configuration.maxSpeed {
-            let wouldResync = jumpStreak + 1 >= configuration.resyncAfterConsecutiveJumps
-            // Remembered even when not counted below, so a replay of it cannot pass later.
+            // Remembered so a replay of it cannot pass later.
             rejectedJumpTimestamps.insert(sample.timestamp)
-            // A candidate older than the one counted last is not a trustworthy place to resync to.
-            if wouldResync, let lastJumpInStreak, sample.timestamp < lastJumpInStreak { return .rejected(.jump) }
-            jumpStreak += 1
+            let continuesRun = lastJumpInStreak.map { sample.timestamp > $0 } ?? true
+            jumpStreak = continuesRun ? jumpStreak + 1 : 1
             lastJumpInStreak = sample.timestamp
-            guard wouldResync else { return .rejected(.jump) }
+            guard jumpStreak >= configuration.resyncAfterConsecutiveJumps else { return .rejected(.jump) }
             adopt(sample)
             return .anchored
         }
