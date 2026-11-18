@@ -2,14 +2,26 @@ import Foundation
 
 /// A source of the current time, injected so tests never sleep.
 public protocol WorkoutClock: Sendable {
+    /// The wall-clock time. It can jump backwards when the time is changed.
     func now() -> Date
+
+    /// Seconds on a monotonic clock that keeps counting through sleep and never goes backwards. Only
+    /// differences between two readings mean anything; the session uses them to measure pauses.
+    func uptime() -> TimeInterval
 }
 
-/// The wall clock used outside tests.
+/// The wall clock and a monotonic clock, used outside tests.
 public struct SystemWorkoutClock: WorkoutClock {
+    private let origin = ContinuousClock.now
+
     public init() {}
 
     public func now() -> Date { Date() }
+
+    public func uptime() -> TimeInterval {
+        let elapsed = ContinuousClock.now - origin
+        return TimeInterval(elapsed.components.seconds) + TimeInterval(elapsed.components.attoseconds) / 1e18
+    }
 }
 
 public enum WorkoutSessionState: Sendable, Hashable {
@@ -69,6 +81,12 @@ public struct PauseInterval: Sendable, Hashable {
 /// running -markSegment-> running; running or paused -end-> ended. Anything else throws
 /// `WorkoutSessionError.invalidTransition` and leaves the session unchanged. Segments can only be
 /// marked while running, and `ended` is terminal.
+///
+/// Timestamps come from the wall clock, which can be set back mid-workout. A pause is measured on
+/// the monotonic uptime instead, so its recorded interval is never reversed and keeps its length:
+/// the recorded end is the start plus the monotonic duration, and the resume or end timestamp is
+/// never earlier than that. Times measured from the wall clock around such a rollback are still only
+/// as good as the wall clock.
 public struct WorkoutSession: Sendable {
     public private(set) var state: WorkoutSessionState = .idle
     public private(set) var startedAt: Date?
@@ -77,6 +95,8 @@ public struct WorkoutSession: Sendable {
     public private(set) var pauses: [PauseInterval] = []
 
     private let clock: any WorkoutClock
+    /// The monotonic uptime at which the open pause began, if one is open.
+    private var openPauseUptime: TimeInterval?
 
     public init(clock: any WorkoutClock = SystemWorkoutClock()) {
         self.clock = clock
@@ -84,11 +104,14 @@ public struct WorkoutSession: Sendable {
 
     public var segmentCount: Int { segments.count }
 
-    /// Time since the start, paused time included, as of the clock's current time.
-    public var elapsedTime: TimeInterval { elapsedTime(at: clock.now()) }
+    /// Time since the start, paused time included, as of the clock's current time. Fixed once ended.
+    public var elapsedTime: TimeInterval { elapsedTime(at: endedAt ?? clock.now()) }
 
-    /// Time since the start without paused time, as of the clock's current time.
-    public var movingTime: TimeInterval { movingTime(at: clock.now()) }
+    /// Time since the start without paused time, as of the clock's current time. Fixed while paused
+    /// and once ended, so a wall-clock change cannot move it without an event.
+    public var movingTime: TimeInterval {
+        movingTime(at: endedAt ?? pauses.last(where: { $0.end == nil })?.start ?? clock.now())
+    }
 
     /// Time since the start, paused time included. Stops growing once ended.
     public func elapsedTime(at date: Date) -> TimeInterval {
@@ -133,19 +156,18 @@ public struct WorkoutSession: Sendable {
             let now = clock.now()
             state = .paused
             pauses.append(PauseInterval(start: now))
+            openPauseUptime = clock.uptime()
             return .paused(timestamp: now)
         case (.paused, .resume):
-            let now = clock.now()
+            let now = closeOpenPause(at: clock.now())
             state = .running
-            closeOpenPause(at: now)
             return .resumed(timestamp: now)
         case (.running, .markSegment):
             let now = clock.now()
             segments.append(Segment(number: segments.count + 1, markedAt: now))
             return .segmentMarked(number: segments.count, timestamp: now)
         case (.running, .end), (.paused, .end):
-            let now = clock.now()
-            closeOpenPause(at: now)
+            let now = closeOpenPause(at: clock.now())
             state = .ended
             endedAt = now
             return .ended(timestamp: now)
@@ -154,9 +176,17 @@ public struct WorkoutSession: Sendable {
         }
     }
 
-    private mutating func closeOpenPause(at date: Date) {
-        guard let last = pauses.indices.last, pauses[last].end == nil else { return }
-        pauses[last].end = date
+    /// Closes the open pause, if any, and returns the timestamp of the event that closed it: `date`,
+    /// or the pause's end when the wall clock went back and `date` falls before it.
+    private mutating func closeOpenPause(at date: Date) -> Date {
+        guard let last = pauses.indices.last, pauses[last].end == nil, let startUptime = openPauseUptime else {
+            return date
+        }
+        let duration = max(0, clock.uptime() - startUptime)
+        let end = max(date, pauses[last].start.addingTimeInterval(duration))
+        pauses[last].end = end
+        openPauseUptime = nil
+        return end
     }
 }
 
