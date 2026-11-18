@@ -41,6 +41,23 @@ gh pr view <url> --json state,mergedAt,mergeStateStatus,headRefName,headRefOid
   `removeLabels ["agent-claimed"]`, `assignee null`, state `"Todo"`.
 - **still open** (checks running, awaiting review, conflict): leave it.
 
+### Merged before the shepherd ran
+
+Linear moves a ticket to `Done` as soon as its PR merges, so a PR that merged
+between two runs is never `In Review` when this step lists tickets. Also check
+the recently finished ones:
+
+```
+list_issues: team "FAR", label "agent-claimed", state "Done", updatedAt "-P3D"
+```
+
+For each, look in `git worktree list` for a worktree named after the ticket
+(`far-<n>-...`) and in `git branch --list "far-<n>-*"` for a local branch. If
+either exists, run the same cleanup as for a merged PR above (worktree, then
+local branch with the tip check). Skip tickets with no leftover worktree or
+branch. If this cleanup fails, the ticket stays `Done`: comment what failed and
+open the failure ticket below, but do not change the ticket's state or labels.
+
 ## 1. Rescue stuck tickets
 
 ```
@@ -73,6 +90,8 @@ If anything in steps 0-2 fails:
 - `save_comment` on the ticket: what broke, what you tried, the exact error.
 - Open a failure ticket titled `Worker failure: <issue-id>` labeled
   `ready-for-human`, linked from that comment.
+- A ticket that is already `Done` (merged-before-the-shepherd cleanup) always
+  stays `Done`, whether the failure is transient or permanent.
 - The ticket already has an open PR, so do not put it back on `ready-for-agent`.
   Transient: leave it `In Review`. Permanent: comment what is blocked,
   `addLabels ["ready-for-human"]`, `removeLabels ["agent-claimed"]`,
