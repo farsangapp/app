@@ -26,20 +26,37 @@ Needs a real Apple Watch (watchOS 11+) with the app installed from Xcode, and an
 
 1. Open `Farsang.xcodeproj` (run `xcodegen generate` first), pick the `FarsangSpike` scheme, set your own signing team
    locally (do not commit it), and run it on the paired watch.
-2. Open the app once while the phone is nearby and allow location access when asked.
+2. Open the app once while the phone is nearby and allow location access when asked. Do this somewhere other than the
+   test site, so the spike's map never loads tiles for the test viewport while online.
 
 ### Offline map (question 1)
 
 1. On the iPhone, open Apple Maps, tap your profile picture, choose Offline Maps, then Download New Map. Download a
    region that covers where you will test, with a clear margin around it.
 2. In the same screen, make sure the region is set to sync with the Apple Watch ("Sync with Apple Watch").
-3. Wait until the watch has the region. Apple Maps on the watch should show it under its offline maps.
-4. Walk or drive somewhere inside the region.
+3. Before syncing the region, check that it is not already on the watch: it must not be listed under "On This Watch"
+   in the watch's Apple Maps offline maps.
+4. Go to the test site, which must be inside the region. Do not open `FarsangSpike` or Apple Maps there while online, so
+   the test viewport has no cached tiles.
 5. Turn on airplane mode on the watch, then switch Wi-Fi off, so it has no network. Move the phone out of Bluetooth
    range (or switch it off).
-6. Open `FarsangSpike`, go to screen 1, and wait up to a minute for a location fix. Tap the center button.
-7. Pan and zoom to see whether map tiles draw. Also compare with the Apple Maps app on the watch in the same state.
-8. Record what you see in the results table. Take a screenshot if you can.
+6. Baseline (before syncing): open `FarsangSpike`, go to screen 1, wait up to a minute for a location fix, tap the
+   center button and note the zoom level. Record whether tiles draw. Leave the app.
+7. Restore connectivity and sync the region to the watch. Wait until it appears under "On This Watch", not just "On
+   Your iPhone". If it never appears there, the run is invalid: record it as inconclusive.
+8. Go offline again as in step 5. Open `FarsangSpike`, go to screen 1, wait for a fix, tap the center button and use
+   the same viewport and zoom levels as the baseline. Pan and zoom to see whether map tiles draw. Also compare with the
+   Apple Maps app on the watch in the same state.
+9. Record what you see in the results table. Take a screenshot if you can.
+
+How to read the outcome:
+
+- Tiles draw after syncing but not in the baseline: pass. The synced region is what draws them.
+- Tiles draw in the baseline too: cached tiles are not proof. Do not use this run to justify dropping the fallback
+  renderer. Redo it at a site whose viewport has never been loaded.
+- Tiles do not draw after syncing, although the region is under "On This Watch": check whether the Apple Maps app on the
+  watch can draw it offline. If Apple Maps cannot either, the run is inconclusive: do not choose the fallback renderer
+  on this result. If Apple Maps can but `FarsangSpike` cannot, MapKit in a third-party app does not use the region.
 
 ### Spoken alert (question 2)
 
@@ -55,7 +72,8 @@ Fill in during FAR-15. Add watch model, watchOS version and iPhone iOS version.
 
 | Test | Setup | Expected for a pass | Result | Notes |
 | --- | --- | --- | --- | --- |
-| Map renders offline | Region downloaded and synced, airplane mode, phone away | Tiles draw inside the region | | |
+| Map renders offline | Region under "On This Watch", airplane mode, phone away, same viewport and zoom as the baseline | Tiles draw inside the region after syncing but not in the baseline | | |
+| Map baseline | Same viewport and zoom, offline, before syncing | Blank (otherwise the run proves nothing) | | |
 | Location label | Same | Shows "Location: available" | | |
 | Center button | Same | Map recenters on the blue dot | | |
 | Map outside region | Same, outside the region | Blank or coarse map (control case) | | |
@@ -67,5 +85,6 @@ Fill in during FAR-15. Add watch model, watchOS version and iPhone iOS version.
 
 - Offline map result: ______
 - Speech result: ______
-- Consequence for `docs/PLAN.md`: if the map renders offline, Apple Maps is the map and M4 and M5 are not needed. If
-  it does not, the fallback offline renderer is needed.
+- Consequence for `docs/PLAN.md`: if the map renders offline in a valid run (baseline blank, region under "On This
+  Watch"), Apple Maps is the map and M4 and M5 are not needed. If it does not, and Apple Maps can draw the region on
+  the watch, the fallback offline renderer is needed. An inconclusive run decides nothing.

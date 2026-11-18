@@ -8,6 +8,11 @@ final class LocationModel: NSObject {
     private let manager = CLLocationManager()
     private(set) var authorization: CLAuthorizationStatus
     private(set) var hasFix = false
+    @ObservationIgnored private var staleTask: Task<Void, Never>?
+
+    /// A sample only counts as a fix if it is recent and its horizontal accuracy is usable.
+    private static let maxSampleAge: TimeInterval = 30
+    private static let maxHorizontalAccuracy: CLLocationAccuracy = 100
 
     override init() {
         authorization = manager.authorizationStatus
@@ -48,10 +53,25 @@ extension LocationModel: @preconcurrency CLLocationManagerDelegate {
     }
 
     func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
-        hasFix = !locations.isEmpty
+        guard let latest = locations.last else { return }
+        let age = -latest.timestamp.timeIntervalSinceNow
+        let usable =
+            latest.horizontalAccuracy >= 0
+            && latest.horizontalAccuracy <= Self.maxHorizontalAccuracy
+            && age <= Self.maxSampleAge
+        staleTask?.cancel()
+        hasFix = usable
+        guard usable else { return }
+        // Expire the label if no further usable sample arrives before this one goes stale.
+        staleTask = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(Self.maxSampleAge - age))
+            guard !Task.isCancelled else { return }
+            self?.hasFix = false
+        }
     }
 
     func locationManager(_ manager: CLLocationManager, didFailWithError error: any Error) {
+        staleTask?.cancel()
         hasFix = false
     }
 }
