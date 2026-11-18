@@ -229,6 +229,21 @@ extension AlertEngineTests {
         #expect(sink.spoken == ["Turn left", "Turn right onto Elm"])
     }
 
+    @Test func unavailableDistanceLeavesTheDistanceOutOfTheTurnBanner() {
+        var engine = makeEngine()
+        engine.post(.turnAhead(maneuverID: "m1", direction: .left, distanceMeters: 1e300, streetName: nil), at: start)
+        engine.post(
+            .turnAhead(maneuverID: "m2", direction: .right, distanceMeters: .nan, streetName: "Elm"), at: start)
+        engine.post(
+            .turnAhead(maneuverID: "m3", direction: .left, distanceMeters: -5, streetName: "Oak"), at: start)
+        #expect(
+            sink.banners == [
+                AlertBanner(kind: .turnAhead, title: "Turn left", detail: nil),
+                AlertBanner(kind: .turnAhead, title: "Turn right", detail: "Elm"),
+                AlertBanner(kind: .turnAhead, title: "Turn left", detail: "Oak")
+            ])
+    }
+
     @Test func resetTurnCooldownsLetsAReplacementRouteReuseManeuverIDs() {
         var engine = makeEngine()
         engine.post(.turnAhead(maneuverID: "m1", direction: .left, distanceMeters: 150, streetName: "Elm"), at: start)

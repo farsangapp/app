@@ -6,10 +6,7 @@ enum AlertPhrasing {
         let kind = alert.kind
         switch alert {
         case .turnAhead(_, let direction, let meters, let rawStreet):
-            let street = streetName(rawStreet)
-            let distance = DistanceFormatter.string(fromMeters: meters, unitSystem: unitSystem)
-            let detail = street.map { "In \(distance), \($0)" } ?? "In \(distance)"
-            return AlertBanner(kind: kind, title: "Turn \(direction.rawValue)", detail: detail)
+            return turnBanner(direction: direction, meters: meters, street: rawStreet, unitSystem: unitSystem)
         case .offRoute(let heading):
             return AlertBanner(kind: kind, title: "Off route", detail: heading.map { "Head \($0.rawValue)" })
         case .backOnRoute:
@@ -27,6 +24,29 @@ enum AlertPhrasing {
         case .ended:
             return AlertBanner(kind: kind, title: "Workout ended")
         }
+    }
+
+    private static func turnBanner(
+        direction: TurnDirection, meters: Double, street rawStreet: String?, unitSystem: UnitSystem
+    ) -> AlertBanner {
+        let street = streetName(rawStreet)
+        let distance =
+            hasSayableDistance(meters, unitSystem: unitSystem)
+            ? DistanceFormatter.string(fromMeters: meters, unitSystem: unitSystem) : nil
+        let detail: String? =
+            switch (distance, street) {
+            case (let distance?, let street?): "In \(distance), \(street)"
+            case (let distance?, nil): "In \(distance)"
+            case (nil, let street?): street
+            case (nil, nil): nil
+            }
+        return AlertBanner(kind: .turnAhead, title: "Turn \(direction.rawValue)", detail: detail)
+    }
+
+    /// Banner and speech share one rule: an unavailable distance (negative, not finite or too large to represent)
+    /// is left out rather than shown or said wrongly.
+    private static func hasSayableDistance(_ meters: Double, unitSystem: UnitSystem) -> Bool {
+        SpokenFormatter.distance(fromMeters: meters, unitSystem: unitSystem) != nil
     }
 
     /// A blank street name is no street name.
