@@ -46,7 +46,7 @@ public struct AlertEngine {
         }
         // Announcing a new state ends the opposite one, so its next announcement is never suppressed.
         if let opposite = Self.opposite(of: alert.kind) {
-            lastDelivered = lastDelivered.filter { $0.key.kind != opposite }
+            lastDelivered[RateLimitKey(kind: opposite, subject: "")] = nil
         }
         lastDelivered[key] = now
 
@@ -71,6 +71,14 @@ public struct AlertEngine {
         }
     }
 
+    /// Forgets the turn cooldowns, for when the route is replaced.
+    ///
+    /// Turn cooldowns are keyed by maneuver ID, and a new route may reuse IDs. Call this when the route
+    /// changes so the new route's first turn alert is never suppressed by the old route's.
+    public mutating func resetTurnCooldowns() {
+        lastDelivered = lastDelivered.filter { $0.key.kind != .turnAhead }
+    }
+
     /// Forgets what was delivered, for the start of a new workout.
     public mutating func reset() {
         lastDelivered.removeAll()
@@ -81,6 +89,11 @@ public struct AlertEngine {
 private struct RateLimitKey: Hashable {
     let kind: AlertKind
     let subject: String
+
+    init(kind: AlertKind, subject: String) {
+        self.kind = kind
+        self.subject = subject
+    }
 
     init(_ alert: Alert, unitSystem: UnitSystem) {
         kind = alert.kind

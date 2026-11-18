@@ -23,9 +23,11 @@ public enum SpokenFormatter {
     }
 
     /// A distance said aloud: "150 meters", "1.2 kilometers", "250 feet", "0.3 miles".
-    public static func distance(fromMeters meters: Double, unitSystem: UnitSystem) -> String {
-        let fallback = "0 \(unitSystem == .metric ? "meters" : "feet")"
-        guard meters.isFinite, meters >= 0 else { return fallback }
+    ///
+    /// Returns nil when there is no sensible distance to say (negative, not finite or too large to represent),
+    /// so callers can leave the distance out instead of speaking a wrong one.
+    public static func distance(fromMeters meters: Double, unitSystem: UnitSystem) -> String? {
+        guard meters.isFinite, meters >= 0 else { return nil }
         let text: String?
         switch unitSystem {
         case .metric:
@@ -42,7 +44,7 @@ public enum SpokenFormatter {
                 text = distanceText(roundedTenths(unitSystem.value(fromMeters: meters)), unit: "mile")
             }
         }
-        return text ?? fallback
+        return text
     }
 
     private static func roundedUp(_ value: Double, toNearest step: Double) -> Double {

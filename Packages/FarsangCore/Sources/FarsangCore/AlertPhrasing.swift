@@ -51,8 +51,9 @@ enum AlertPhrasing {
         case .turnAhead(_, let direction, let meters, let rawStreet):
             let street = streetName(rawStreet)
             let distance = SpokenFormatter.distance(fromMeters: meters, unitSystem: unitSystem)
+            let lead = distance.map { "In \($0), turn" } ?? "Turn"
             let onto = street.map { " onto \($0)" } ?? ""
-            return "In \(distance), turn \(direction.rawValue)\(onto)"
+            return "\(lead) \(direction.rawValue)\(onto)"
         case .offRoute(let heading):
             return heading.map { "You're off route. Head \($0.rawValue)" } ?? "You're off route"
         case .backOnRoute:

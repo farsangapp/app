@@ -221,6 +221,38 @@ extension AlertEngineTests {
         #expect(next == .delivered)
     }
 
+    @Test func unavailableDistanceLeavesTheDistanceOutOfTheSpokenTurn() {
+        var engine = makeEngine()
+        engine.post(.turnAhead(maneuverID: "m1", direction: .left, distanceMeters: 1e300, streetName: nil), at: start)
+        engine.post(
+            .turnAhead(maneuverID: "m2", direction: .right, distanceMeters: .nan, streetName: "Elm"), at: start)
+        #expect(sink.spoken == ["Turn left", "Turn right onto Elm"])
+    }
+
+    @Test func resetTurnCooldownsLetsAReplacementRouteReuseManeuverIDs() {
+        var engine = makeEngine()
+        engine.post(.turnAhead(maneuverID: "m1", direction: .left, distanceMeters: 150, streetName: "Elm"), at: start)
+        engine.resetTurnCooldowns()
+        let replacement = engine.post(
+            .turnAhead(maneuverID: "m1", direction: .right, distanceMeters: 150, streetName: "Oak"),
+            at: start.addingTimeInterval(5))
+        #expect(replacement == .delivered)
+        #expect(sink.spoken.last == "In 150 meters, turn right onto Oak")
+    }
+
+    @Test func resetTurnCooldownsLeavesOtherAlertsRateLimited() {
+        var engine = makeEngine()
+        engine.post(.offRoute(heading: nil), at: start)
+        engine.post(.turnAhead(maneuverID: "m1", direction: .left, distanceMeters: 150, streetName: nil), at: start)
+        engine.resetTurnCooldowns()
+        let offRoute = engine.post(.offRoute(heading: nil), at: start.addingTimeInterval(5))
+        let sameTurn = engine.post(
+            .turnAhead(maneuverID: "m1", direction: .left, distanceMeters: 100, streetName: nil),
+            at: start.addingTimeInterval(5))
+        #expect(offRoute == .rateLimited)
+        #expect(sameTurn == .delivered)
+    }
+
     @Test func blankStreetNameIsTreatedAsAbsent() {
         var engine = makeEngine()
         engine.post(.turnAhead(maneuverID: "m1", direction: .left, distanceMeters: 150, streetName: "  \n"), at: start)

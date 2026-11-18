@@ -69,14 +69,15 @@ struct SpokenDistanceTests {
         #expect(SpokenFormatter.distance(fromMeters: 1_609.344, unitSystem: .imperial) == "1 mile")
     }
 
-    @Test func invalidDistanceSpeaksZero() {
-        #expect(SpokenFormatter.distance(fromMeters: -1, unitSystem: .metric) == "0 meters")
-        #expect(SpokenFormatter.distance(fromMeters: .nan, unitSystem: .imperial) == "0 feet")
+    @Test func unrepresentablyLargeDistanceIsUnavailableInsteadOfTrapping() {
+        #expect(SpokenFormatter.distance(fromMeters: .greatestFiniteMagnitude, unitSystem: .metric) == nil)
+        #expect(SpokenFormatter.distance(fromMeters: .greatestFiniteMagnitude, unitSystem: .imperial) == nil)
+        #expect(SpokenFormatter.distance(fromMeters: 1e300, unitSystem: .metric) == nil)
     }
 
-    @Test func unrepresentablyLargeDistanceSpeaksZeroInsteadOfTrapping() {
-        #expect(SpokenFormatter.distance(fromMeters: .greatestFiniteMagnitude, unitSystem: .metric) == "0 meters")
-        #expect(SpokenFormatter.distance(fromMeters: .greatestFiniteMagnitude, unitSystem: .imperial) == "0 feet")
-        #expect(SpokenFormatter.distance(fromMeters: 1e300, unitSystem: .metric) == "0 meters")
+    @Test func invalidDistanceIsUnavailable() {
+        #expect(SpokenFormatter.distance(fromMeters: -5, unitSystem: .metric) == nil)
+        #expect(SpokenFormatter.distance(fromMeters: .nan, unitSystem: .imperial) == nil)
+        #expect(SpokenFormatter.distance(fromMeters: .infinity, unitSystem: .metric) == nil)
     }
 }
