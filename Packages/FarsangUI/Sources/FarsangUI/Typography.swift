@@ -16,8 +16,20 @@ extension Font {
 /// A Farsang type token: a rounded system font whose point size scales with
 /// Dynamic Type. `size` is the design size at the default (Large) text size;
 /// `relativeTo` picks which accessibility text setting drives the scaling.
-/// Read `font` inside a view to get the scaled font; `designFont` returns the
-/// unscaled design size for tests and static previews.
+///
+/// `ScaledFont` is a `DynamicProperty`, so it only tracks the user's text size
+/// when installed as a stored property of a view and read in `body`. Store the
+/// token, then read its `font`:
+///
+/// ```swift
+/// private var valueToken = Typography.watchLarge
+/// // ...
+/// Text(value).font(valueToken.font)
+/// ```
+///
+/// Reading a static token such as `Typography.watchLarge.font` directly inside
+/// `body` does not install it as a dynamic property, so the font stays at the
+/// design size when the accessibility text size changes.
 public struct ScaledFont: DynamicProperty, Sendable {
     private let baseSize: CGFloat
     @ScaledMetric private var scaledSize: CGFloat
@@ -36,13 +48,15 @@ public struct ScaledFont: DynamicProperty, Sendable {
         self.monospacedDigits = monospacedDigits
     }
 
-    /// The font at the design size, ignoring Dynamic Type.
+    /// The explicitly unscaled font at the design size, ignoring Dynamic Type.
+    /// Use for tests and static previews.
     public var designFont: Font {
         let base = Font.rounded(baseSize, weight: weight)
         return monospacedDigits ? base.monospacedDigit() : base
     }
 
-    /// The font resolved at the current Dynamic Type size.
+    /// The font resolved at the current Dynamic Type size. Read this from a
+    /// stored token property so SwiftUI updates it when the text size changes.
     public var font: Font {
         let base = Font.rounded(scaledSize, weight: weight)
         return monospacedDigits ? base.monospacedDigit() : base
