@@ -34,4 +34,10 @@ struct SpokenFormatterTests {
     @Test func zeroDistanceMarker() {
         #expect(SpokenFormatter.distanceMarker(fromMeters: 0, unitSystem: .metric) == "kilometer 0")
     }
+
+    @Test func overflowingDistanceFallsBackToZeroMarker() {
+        #expect(
+            SpokenFormatter.distanceMarker(fromMeters: .greatestFiniteMagnitude, unitSystem: .metric)
+                == "kilometer 0")
+    }
 }

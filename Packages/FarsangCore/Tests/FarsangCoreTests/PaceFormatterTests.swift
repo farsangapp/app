@@ -32,4 +32,9 @@ struct PaceFormatterTests {
         #expect(PaceFormatter.string(fromSecondsPerUnit: 312.4) == "5:12")
         #expect(PaceFormatter.string(fromSecondsPerUnit: 312.6) == "5:13")
     }
+
+    @Test func roundsToWholeSecondBeforeBoundary() {
+        #expect(PaceFormatter.string(fromSecondsPerUnit: 3_599.49) == "59:59")
+        #expect(PaceFormatter.string(fromSecondsPerUnit: 3_599.5) == "--:--")
+    }
 }

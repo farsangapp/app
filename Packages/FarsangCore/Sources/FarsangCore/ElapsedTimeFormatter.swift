@@ -1,7 +1,7 @@
 public enum ElapsedTimeFormatter {
     public static func string(fromSeconds seconds: Double) -> String {
         guard seconds.isFinite, seconds >= 0 else { return "0:00" }
-        let totalSeconds = Int(seconds.rounded())
+        guard let totalSeconds = Int(exactly: seconds.rounded()) else { return "0:00" }
         let hours = totalSeconds / 3_600
         let minutes = (totalSeconds % 3_600) / 60
         let secs = totalSeconds % 60

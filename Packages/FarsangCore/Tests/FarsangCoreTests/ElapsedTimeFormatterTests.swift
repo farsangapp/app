@@ -27,6 +27,14 @@ struct ElapsedTimeFormatterTests {
         #expect(ElapsedTimeFormatter.string(fromSeconds: 3_600) == "1:00:00")
     }
 
+    @Test func roundsHalfUpToNextUnit() {
+        #expect(ElapsedTimeFormatter.string(fromSeconds: 3_599.5) == "1:00:00")
+    }
+
+    @Test func rejectsSecondsThatDoNotFitInInt() {
+        #expect(ElapsedTimeFormatter.string(fromSeconds: Double(Int.max)) == "0:00")
+    }
+
     @Test func padsSingleDigitSeconds() {
         #expect(ElapsedTimeFormatter.string(fromSeconds: 61) == "1:01")
         #expect(ElapsedTimeFormatter.string(fromSeconds: 600) == "10:00")
