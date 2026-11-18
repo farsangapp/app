@@ -12,8 +12,8 @@ final class ManualClock: WorkoutClock {
 
     private let readings: Mutex<Readings>
 
-    init(_ start: Date = Date(timeIntervalSince1970: 1_000)) {
-        readings = Mutex(Readings(wall: start, uptime: 5_000))
+    init(_ start: Date = Date(timeIntervalSince1970: 1_000), uptime: TimeInterval = 5_000) {
+        readings = Mutex(Readings(wall: start, uptime: uptime))
     }
 
     func now() -> Date { readings.withLock { $0.wall } }

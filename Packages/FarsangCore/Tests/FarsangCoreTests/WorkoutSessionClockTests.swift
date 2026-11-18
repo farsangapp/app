@@ -144,6 +144,52 @@ struct WorkoutSessionClockTests {
         #expect(fixture.session.movingTime(at: at(150)) == 110)
     }
 
+    // MARK: Pause precision
+
+    @Test func movingTimeWhilePausedDoesNotDependOnLaterClockReads() throws {
+        let clock = ManualClock(uptime: 0.15)
+        var session = WorkoutSession(clock: clock)
+        try session.handle(.start)
+        clock.advance(by: 2)
+        try session.handle(.pause)
+        let atPause = session.movingTime
+        #expect(atPause == 2)
+        clock.advance(by: 2.35)
+        #expect(session.movingTime == atPause)
+    }
+
+    @Test func movingTimeWhilePausedAfterAnEarlierPauseDoesNotDependOnLaterClockReads() throws {
+        let clock = ManualClock(uptime: 0.15)
+        var session = WorkoutSession(clock: clock)
+        try session.handle(.start)
+        clock.advance(by: 1)
+        try session.handle(.pause)
+        clock.advance(by: 0.7)
+        try session.handle(.resume)
+        clock.advance(by: 2)
+        try session.handle(.pause)
+        let atPause = session.movingTime
+        clock.advance(by: 2.35)
+        #expect(session.movingTime == atPause)
+        clock.advance(by: 1_000.1)
+        #expect(session.movingTime == atPause)
+    }
+
+    // MARK: Pause interval invariant
+
+    @Test func pauseIntervalNormalizesANegativeDurationToZero() {
+        let pause = PauseInterval(start: at(10), duration: -5)
+        #expect(pause.duration == 0)
+        #expect(pause.end == at(10))
+    }
+
+    @Test func pauseIntervalKeepsOpenZeroAndPositiveDurations() {
+        #expect(PauseInterval(start: at(10)).duration == nil)
+        #expect(PauseInterval(start: at(10)).end == nil)
+        #expect(PauseInterval(start: at(10), duration: 0).duration == 0)
+        #expect(PauseInterval(start: at(10), duration: 7.5).end == at(17.5))
+    }
+
     // MARK: Equality
 
     @Test func sessionsWithDifferentOpenPauseBaselinesAreNotEqual() throws {

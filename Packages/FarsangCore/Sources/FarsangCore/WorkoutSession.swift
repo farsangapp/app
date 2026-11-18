@@ -76,9 +76,10 @@ public struct PauseInterval: Sendable, Hashable {
     /// before `start`, and it can differ from the wall date the resume was observed at.
     public var end: Date? { duration.map { start.addingTimeInterval($0) } }
 
+    /// A negative `duration` is stored as zero, so `end` is never before `start`.
     public init(start: Date, duration: TimeInterval? = nil) {
         self.start = start
-        self.duration = duration
+        self.duration = duration.map { max(0, $0) }
     }
 }
 
@@ -126,10 +127,11 @@ public struct WorkoutSession: Sendable {
     /// ended, and it resumes counting the moment the session resumes.
     public var movingTime: TimeInterval {
         guard let startUptime else { return 0 }
-        let reference = endUptime ?? clock.uptime()
+        // While paused, the moving time is frozen at the uptime the pause began, so it does not
+        // depend on later clock reads and has no rounding drift.
+        let reference = openPauseUptime ?? endUptime ?? clock.uptime()
         let closed = pauses.reduce(0) { $0 + ($1.duration ?? 0) }
-        let open = openPauseUptime.map { max(0, reference - $0) } ?? 0
-        return max(0, reference - startUptime - closed - open)
+        return max(0, reference - startUptime - closed)
     }
 
     /// Time since the start, paused time included, as of a wall date. Stops growing once ended.
