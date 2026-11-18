@@ -28,6 +28,8 @@ settings:
 packages:
   FarsangCore:
     path: Packages/FarsangCore
+  FarsangUI:
+    path: Packages/FarsangUI
 
 targets:
   Farsang:
@@ -37,6 +39,7 @@ targets:
       - Apps/iPhone
     dependencies:
       - package: FarsangCore
+      - package: FarsangUI
       - target: FarsangWatch
         embed: true
     settings:
@@ -56,6 +59,7 @@ targets:
       - Apps/Watch
     dependencies:
       - package: FarsangCore
+      - package: FarsangUI
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: dev.djawadi.farsang.watchkitapp
@@ -93,6 +97,7 @@ schemes:
       config: Debug
       targets:
         - package: FarsangCore/FarsangCoreTests
+        - package: FarsangUI/FarsangUITests
     profile:
       config: Release
     analyze:
