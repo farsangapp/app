@@ -1,4 +1,5 @@
 import Testing
+
 @testable import FarsangCore
 
 struct SpokenFormatterTests {
@@ -39,5 +40,44 @@ struct SpokenFormatterTests {
         #expect(
             SpokenFormatter.distanceMarker(fromMeters: .greatestFiniteMagnitude, unitSystem: .metric)
                 == "kilometer 0")
+    }
+}
+
+struct SpokenDistanceTests {
+    @Test func speaksShortMetricDistanceInMeters() {
+        #expect(SpokenFormatter.distance(fromMeters: 150, unitSystem: .metric) == "150 meters")
+        #expect(SpokenFormatter.distance(fromMeters: 148, unitSystem: .metric) == "150 meters")
+    }
+
+    @Test func neverSpeaksZeroMeters() {
+        #expect(SpokenFormatter.distance(fromMeters: 2, unitSystem: .metric) == "10 meters")
+    }
+
+    @Test func speaksLongMetricDistanceInKilometers() {
+        #expect(SpokenFormatter.distance(fromMeters: 1_240, unitSystem: .metric) == "1.2 kilometers")
+        #expect(SpokenFormatter.distance(fromMeters: 1_000, unitSystem: .metric) == "1 kilometer")
+        #expect(SpokenFormatter.distance(fromMeters: 2_000, unitSystem: .metric) == "2 kilometers")
+    }
+
+    @Test func speaksShortImperialDistanceInFeet() {
+        #expect(SpokenFormatter.distance(fromMeters: 60, unitSystem: .imperial) == "200 feet")
+        #expect(SpokenFormatter.distance(fromMeters: 1, unitSystem: .imperial) == "50 feet")
+    }
+
+    @Test func speaksLongImperialDistanceInMiles() {
+        #expect(SpokenFormatter.distance(fromMeters: 482.8, unitSystem: .imperial) == "0.3 miles")
+        #expect(SpokenFormatter.distance(fromMeters: 1_609.344, unitSystem: .imperial) == "1 mile")
+    }
+
+    @Test func unrepresentablyLargeDistanceIsUnavailableInsteadOfTrapping() {
+        #expect(SpokenFormatter.distance(fromMeters: .greatestFiniteMagnitude, unitSystem: .metric) == nil)
+        #expect(SpokenFormatter.distance(fromMeters: .greatestFiniteMagnitude, unitSystem: .imperial) == nil)
+        #expect(SpokenFormatter.distance(fromMeters: 1e300, unitSystem: .metric) == nil)
+    }
+
+    @Test func invalidDistanceIsUnavailable() {
+        #expect(SpokenFormatter.distance(fromMeters: -5, unitSystem: .metric) == nil)
+        #expect(SpokenFormatter.distance(fromMeters: .nan, unitSystem: .imperial) == nil)
+        #expect(SpokenFormatter.distance(fromMeters: .infinity, unitSystem: .metric) == nil)
     }
 }
