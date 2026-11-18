@@ -33,16 +33,17 @@ Needs a real Apple Watch (watchOS 11+) with the app installed from Xcode, and an
 
 1. On the iPhone, open Apple Maps, tap your profile picture, choose Offline Maps, then Download New Map. Download a
    region that covers where you will test, with a clear margin around it.
-2. In the same screen, make sure the region is set to sync with the Apple Watch ("Sync with Apple Watch").
-3. Before syncing the region, check that it is not already on the watch: it must not be listed under "On This Watch"
-   in the watch's Apple Maps offline maps.
+2. In the same screen, keep "Sync with Apple Watch" switched off for this region until the baseline in step 6 is done.
+   If it was on, switch it off now.
+3. Check that the region is not already on the watch: it must not be listed under "On This Watch" in the watch's Apple
+   Maps offline maps.
 4. Go to the test site, which must be inside the region. Do not open `FarsangSpike` or Apple Maps there while online, so
    the test viewport has no cached tiles.
 5. Turn on airplane mode on the watch, then switch Wi-Fi off, so it has no network. Move the phone out of Bluetooth
    range (or switch it off).
 6. Baseline (before syncing): open `FarsangSpike`, go to screen 1, wait up to a minute for a location fix, tap the
    center button and note the zoom level. Record whether tiles draw. Leave the app.
-7. Restore connectivity and sync the region to the watch. Wait until it appears under "On This Watch", not just "On
+7. Restore connectivity, switch "Sync with Apple Watch" on for the region and sync it to the watch. Wait until it appears under "On This Watch", not just "On
    Your iPhone". If it never appears there, the run is invalid: record it as inconclusive.
 8. Go offline again as in step 5. Open `FarsangSpike`, go to screen 1, wait for a fix, tap the center button and use
    the same viewport and zoom levels as the baseline. Pan and zoom to see whether map tiles draw. Also compare with the

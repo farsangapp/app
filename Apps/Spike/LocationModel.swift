@@ -63,8 +63,9 @@ extension LocationModel: @preconcurrency CLLocationManagerDelegate {
         hasFix = usable
         guard usable else { return }
         // Expire the label if no further usable sample arrives before this one goes stale.
+        let deadline = ContinuousClock.now.advanced(by: .seconds(Self.maxSampleAge - age))
         staleTask = Task { [weak self] in
-            try? await Task.sleep(for: .seconds(Self.maxSampleAge - age))
+            try? await Task.sleep(until: deadline, clock: .continuous)
             guard !Task.isCancelled else { return }
             self?.hasFix = false
         }
