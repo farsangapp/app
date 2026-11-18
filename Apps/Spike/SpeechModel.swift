@@ -10,6 +10,9 @@ final class SpeechModel: NSObject {
     /// `nonisolated(unsafe)` so `deinit` can stop it; after init it is only touched from the main actor or `deinit`.
     nonisolated(unsafe) private let synthesizer = AVSpeechSynthesizer()
     /// Utterances handed to the synthesizer that have not yet finished or been cancelled, tracked by identity.
+    /// True while this model holds the shared session active. `nonisolated(unsafe)` so `deinit` can read it; after
+    /// init it is only touched from the main actor or `deinit`. A throwaway `@State` model never sets it.
+    @ObservationIgnored nonisolated(unsafe) private var sessionActive = false
     @ObservationIgnored private var pendingUtterances: Set<AVSpeechUtterance> = []
     @ObservationIgnored private var observers: [Task<Void, Never>] = []
     private(set) var route = "Route: not checked"
@@ -40,9 +43,11 @@ final class SpeechModel: NSObject {
         // Dropping a Task handle does not cancel it. Cancelling ends each suspended notification loop at once.
         for observer in observers { observer.cancel() }
         // Released with a prompt pending: no finish or cancel callback will run, so stop speech and end ducking here.
-        // Unconditional because deinit cannot read the isolated pending set; deactivating an idle session is harmless.
+        // Only this model's own activation is ended, so a throwaway model cannot cut off another model's prompt.
         synthesizer.stopSpeaking(at: .immediate)
-        try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+        if sessionActive {
+            try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+        }
     }
 
     func speak() {
@@ -50,6 +55,7 @@ final class SpeechModel: NSObject {
         do {
             try session.setCategory(.playback, mode: .voicePrompt, options: [.duckOthers])
             try session.setActive(true)
+            sessionActive = true
             error = nil
         } catch {
             // Never queue speech without an active session: it could be counted as a pass. A later tap retries.
@@ -88,6 +94,7 @@ final class SpeechModel: NSObject {
         // Releasing the session ends ducking of other audio; keep it while another prompt is queued.
         if pendingUtterances.isEmpty {
             try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+            sessionActive = false
         }
     }
 
