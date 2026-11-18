@@ -35,6 +35,11 @@ final class SpeechModel: NSObject {
         ]
     }
 
+    deinit {
+        // Dropping a Task handle does not cancel it. Cancelling ends each suspended notification loop at once.
+        for observer in observers { observer.cancel() }
+    }
+
     func speak() {
         let session = AVAudioSession.sharedInstance()
         do {
