@@ -4,23 +4,31 @@ import SwiftUI
 
 private struct Swatch: Identifiable {
     let name: String
-    let hex: String
-    let color: Color
+    let rgb: RGB
 
     var id: String { name }
+
+    var color: Color { rgb.color }
+
+    /// The six-digit lowercase hex caption, derived from the token so it stays
+    /// in sync when a palette value changes.
+    var hex: String {
+        let digits = String(rgb.hex, radix: 16)
+        return "#" + String(repeating: "0", count: 6 - digits.count) + digits
+    }
 }
 
 private struct PaletteGallery: View {
     private let swatches: [Swatch] = [
-        Swatch(name: "background", hex: "#000000", color: Palette.background.color),
-        Swatch(name: "amber", hex: "#ffb627", color: Palette.amber.color),
-        Swatch(name: "cyan", hex: "#35d0ff", color: Palette.cyan.color),
-        Swatch(name: "green", hex: "#32d583", color: Palette.green.color),
-        Swatch(name: "red", hex: "#ff453a", color: Palette.red.color),
-        Swatch(name: "blue", hex: "#4da3ff", color: Palette.blue.color),
-        Swatch(name: "ink", hex: "#f4f5f6", color: Palette.ink.color),
-        Swatch(name: "dim", hex: "#8b949c", color: Palette.dim.color),
-        Swatch(name: "card", hex: "#14181c", color: Palette.card.color)
+        Swatch(name: "background", rgb: Palette.background),
+        Swatch(name: "amber", rgb: Palette.amber),
+        Swatch(name: "cyan", rgb: Palette.cyan),
+        Swatch(name: "green", rgb: Palette.green),
+        Swatch(name: "red", rgb: Palette.red),
+        Swatch(name: "blue", rgb: Palette.blue),
+        Swatch(name: "ink", rgb: Palette.ink),
+        Swatch(name: "dim", rgb: Palette.dim),
+        Swatch(name: "card", rgb: Palette.card)
     ]
 
     var body: some View {
@@ -47,11 +55,11 @@ private struct PaletteGallery: View {
 
 private struct TypographyGallery: View {
     private let samples: [(name: String, font: Font)] = [
-        ("watchHero 40", Typography.watchHero),
-        ("watchLarge 26", Typography.watchLarge),
-        ("watchMedium 22", Typography.watchMedium),
-        ("watchUnit 12", Typography.watchUnit),
-        ("watchLabel 10", Typography.watchLabel),
+        ("watchHero 40", Typography.watchHero.designFont),
+        ("watchLarge 26", Typography.watchLarge.designFont),
+        ("watchMedium 22", Typography.watchMedium.designFont),
+        ("watchUnit 12", Typography.watchUnit.designFont),
+        ("watchLabel 10", Typography.watchLabel.designFont),
         ("phoneDisplay 64", Typography.phoneDisplay),
         ("phoneTitle 34", Typography.phoneTitle),
         ("phoneHeadline 22", Typography.phoneHeadline),

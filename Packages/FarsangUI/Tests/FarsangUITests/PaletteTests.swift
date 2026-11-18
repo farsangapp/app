@@ -23,6 +23,11 @@ struct PaletteTests {
         #expect(abs(amber.blue - (39.0 / 255.0)) < 1e-12)
     }
 
+    @Test func masksHexTo24Bits() {
+        // Higher bits are dropped so values with the same channels compare equal.
+        #expect(RGB(hex: 0xFF32_D583) == RGB(hex: 0x0032_D583))
+    }
+
     @Test func blackAndWhiteAreExtrema() {
         #expect(RGB(hex: 0x000000).red == 0)
         #expect(RGB(hex: 0x000000).green == 0)

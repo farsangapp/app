@@ -8,7 +8,9 @@ public struct RGB: Sendable, Hashable {
     public let hex: UInt32
 
     public init(hex: UInt32) {
-        self.hex = hex
+        // Keep only the documented 24 bits so two values that render with the
+        // same channels compare equal regardless of any higher bits.
+        self.hex = hex & 0x00FF_FFFF
     }
 
     /// The red component in `0...1`.
