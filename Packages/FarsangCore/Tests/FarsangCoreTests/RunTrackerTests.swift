@@ -175,6 +175,7 @@ struct RunTrackerPauseTests {
         tracker.resume(at: at(30))
         // Both dates are earlier than the running period that began at t=30, so they must not rewind the clock.
         tracker.pause(at: at(5))
+        #expect(tracker.state == .paused)
         tracker.resume(at: at(10))
         #expect(tracker.snapshot(at: at(20)).elapsedTime == 20)
         // The tracker is running again after the backdated pause and resume, not stuck paused.
@@ -197,6 +198,43 @@ struct RunTrackerPauseTests {
         let snapshot = tracker.snapshot(at: at(50))
         #expect(snapshot.elapsedTime == 30)
         #expect(snapshot.completedSegments.first?.duration == 30)
+    }
+
+    @Test func ignoredMarkWhilePausedDoesNotMoveTheClock() {
+        var tracker = makeTracker()
+        tracker.start(at: at(0))
+        tracker.markSegment(at: at(10))
+        tracker.pause(at: at(10))
+        // Closes nothing: no running time has passed since the last mark.
+        tracker.markSegment(at: at(100))
+        tracker.resume(at: at(20))
+        #expect(tracker.snapshot(at: at(120)).elapsedTime == 110)
+    }
+
+    @Test func closingMarkWhilePausedDoesNotMoveTheClock() {
+        var tracker = makeTracker()
+        tracker.start(at: at(0))
+        tracker.markSegment(at: at(5))
+        tracker.pause(at: at(10))
+        // Closes the 5 s to 10 s segment, but a paused run takes no time from the date.
+        tracker.markSegment(at: at(100))
+        tracker.resume(at: at(20))
+        let snapshot = tracker.snapshot(at: at(120))
+        #expect(snapshot.elapsedTime == 110)
+        #expect(snapshot.completedSegments.map(\.duration) == [5, 5])
+    }
+
+    @Test func snapshotBeforeTheClockUsesTheClockForHeartRateToo() {
+        var tracker = makeTracker()
+        tracker.start(at: at(0))
+        tracker.add(heartRate(at: 0, 150))
+        tracker.markSegment(at: at(20))
+        // A snapshot dated before the last lifecycle date reads as that date: the reading is stale, not current.
+        let snapshot = tracker.snapshot(at: at(5))
+        #expect(snapshot.elapsedTime == 20)
+        #expect(snapshot.currentHeartRate == nil)
+        #expect(snapshot.currentZone == nil)
+        #expect(snapshot.timeInZone.values.reduce(0, +) == 10)
     }
 
     @Test func backdatedMarkAndEndNeverRewindTheClock() {

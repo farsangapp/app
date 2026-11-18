@@ -203,7 +203,9 @@ struct RunTrackerHeartRateTests {
         tracker.resume(at: at(5))
         tracker.add(heartRate(at: 5, 130))
         tracker.add(heartRate(at: 8, 130))
-        #expect(tracker.snapshot(at: at(8)).timeInZone[.two] == 8)
+        // The clock reached t=20 at the pause, so a snapshot at t=8 reads as t=20: the one reading is credited once,
+        // for the 10 s it holds, and the backdated resume adds no overlapping credit.
+        #expect(tracker.snapshot(at: at(8)).timeInZone[.two] == 10)
     }
 
     @Test func ignoresDroppedSensorReadings() {

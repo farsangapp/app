@@ -31,8 +31,9 @@ public struct RunSnapshot: Sendable, Hashable {
 ///
 /// Time is always passed in, never read from a clock, so behavior is deterministic. Dates passed to `start`,
 /// `pause`, `resume`, `markSegment` and `end` form a monotonic clock: a date earlier than one already seen counts
-/// as that later date, so time never runs backward. Samples are only counted while the run is running; the first
-/// fix after a resume re-anchors and adds no distance.
+/// as that later date, so time never runs backward. Only calls that take effect move that clock: ignored calls do
+/// not, and a mark while paused never does, since a paused run takes no time from the date. Samples are only
+/// counted while the run is running; the first fix after a resume re-anchors and adds no distance.
 public struct RunTracker: Sendable {
     public struct Configuration: Sendable, Hashable {
         public var heartRateZones: HeartRateZones
@@ -134,10 +135,12 @@ public struct RunTracker: Sendable {
     }
 
     /// Closes the current segment and starts a new one. Ignored when no time has passed since the last mark.
+    /// Only a mark that closes a segment while running moves the lifecycle clock; while paused the date is unused.
     /// Ending the run closes the last segment too, so `completedSegments` holds every segment of a finished run.
     public mutating func markSegment(at date: Date) {
         guard state == .running || state == .paused else { return }
-        closeSegment(elapsed: elapsed(at: tick(date)))
+        guard closeSegment(elapsed: elapsed(at: date)) else { return }
+        if state == .running { _ = tick(date) }
     }
 
     // MARK: Samples
@@ -171,6 +174,8 @@ public struct RunTracker: Sendable {
     // MARK: Output
 
     public func snapshot(at date: Date) -> RunSnapshot {
+        // One effective date for every metric, so a snapshot dated before the clock reads as the clock throughout.
+        let date = max(date, clock)
         let now = elapsed(at: date)
         let distance = Distance(meters: totalMeters)
         let current = heart.current(at: date).map(\.beatsPerMinute)
@@ -198,11 +203,14 @@ public struct RunTracker: Sendable {
     var trailPointCount: Int { trail.count }
 
     /// A segment without elapsed time is dropped, unless the run ends and it already holds counted data.
-    private mutating func closeSegment(elapsed now: TimeInterval, keepingZeroDurationData: Bool = false) {
+    /// Returns whether a segment was closed.
+    @discardableResult
+    private mutating func closeSegment(elapsed now: TimeInterval, keepingZeroDurationData: Bool = false) -> Bool {
         let hasData = segment.heartRateCount > 0 || totalMeters > segment.startMeters
-        guard now > segment.startElapsed || (keepingZeroDurationData && hasData) else { return }
+        guard now > segment.startElapsed || (keepingZeroDurationData && hasData) else { return false }
         completedSegments.append(segment.stats(index: completedSegments.count + 1, elapsed: now, meters: totalMeters))
         segment = SegmentAccumulator(startElapsed: now, startMeters: totalMeters)
+        return true
     }
 
     /// Advances the clock to `date`, or leaves it where it is when `date` is earlier, and returns the result.
