@@ -60,8 +60,9 @@ private final class GPXReader: NSObject, XMLParserDelegate {
     /// (a `trkseg` directly inside a `trk` it accepted, and so on). Foreign-namespace elements and elements found
     /// anywhere else are recorded as `nil`, so nothing inside them is ever read as GPX content.
     private var path: [String?] = []
-    /// How many open elements are inside an ignored subtree (`extensions` or a foreign-namespace element),
-    /// counting the subtree's root. While it is above zero nothing is dispatched and no text is collected.
+    /// How many open elements are inside an ignored subtree (`extensions`, a foreign-namespace element or any
+    /// element GPX does not allow at its position), counting the subtree's root.
+    /// While it is above zero nothing is dispatched and no text is collected.
     private var ignoredDepth = 0
     private var text = ""
     private var collectingText = false
@@ -104,6 +105,8 @@ private final class GPXReader: NSObject, XMLParserDelegate {
             return
         }
         accepted = startGPXElement(name, parent: path.last ?? nil, attributes: attributeDict, parser: parser)
+        // A rejected element's subtree is not GPX content either, so its text must not reach an open field.
+        if !accepted { ignoredDepth += 1 }
     }
 
     func parser(_ parser: XMLParser, foundCharacters string: String) {

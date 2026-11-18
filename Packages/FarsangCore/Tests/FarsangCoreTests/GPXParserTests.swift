@@ -134,7 +134,7 @@ struct GPXParserTests {
     }
 
     @Test func pointsFlattenEverySegmentInOrder() throws {
-        let track = try parseFixture("track-1.1").tracks[0]
+        let track = try #require(parseFixture("track-1.1").tracks.first)
 
         #expect(track.points.map(\.latitude) == [0.0010, 0.0011, 0.0012, -0.0030])
     }

@@ -40,6 +40,20 @@ struct GPXParserValidationTests {
         #expect(point.elevation == -12.5)
     }
 
+    // MARK: Nested elements inside text fields
+
+    @Test func skipsTextInsideUnknownElementsNestedInATextField() throws {
+        let xml = #"""
+            <gpx version="1.1" creator="x"><wpt lat="1" lon="2">
+            <ele>1<unknown>2</unknown>.5</ele><name>Wa<b>XX</b>ter</name>
+            </wpt></gpx>
+            """#
+        let waypoint = try #require(GPXParser.parse(Data(xml.utf8)).waypoints.first)
+
+        #expect(waypoint.point.elevation == 1.5)
+        #expect(waypoint.name == "Water")
+    }
+
     // MARK: Ownership
 
     @Test func ignoresRoutePointsWhoseRouteIsNotADirectChildOfTheRoot() {
