@@ -15,6 +15,7 @@ let package = Package(
         .testTarget(
             name: "FarsangCoreTests",
             dependencies: ["FarsangCore"],
+            resources: [.copy("Fixtures")],
             swiftSettings: [.treatAllWarnings(as: .error)]
         )
     ],

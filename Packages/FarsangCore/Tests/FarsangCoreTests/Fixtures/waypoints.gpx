@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="Farsang test fixture" xmlns="http://www.topografix.com/GPX/1/1">
+  <wpt lat="0.0200" lon="0.0300">
+    <ele>20.5</ele>
+    <time>2025-01-02T10:00:00Z</time>
+    <name>Water</name>
+    <desc>Fountain &amp; bench</desc>
+    <sym>Drinking Water</sym>
+  </wpt>
+  <wpt lat="-0.0210" lon="0.0310">
+    <name>Bare waypoint</name>
+  </wpt>
+  <wpt lat="0.0220" lon="-0.0320"/>
+</gpx>
