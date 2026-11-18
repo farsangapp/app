@@ -24,20 +24,25 @@ public enum SpokenFormatter {
 
     /// A distance said aloud: "150 meters", "1.2 kilometers", "250 feet", "0.3 miles".
     public static func distance(fromMeters meters: Double, unitSystem: UnitSystem) -> String {
-        guard meters.isFinite, meters >= 0 else { return "0 \(unitSystem == .metric ? "meters" : "feet")" }
+        let fallback = "0 \(unitSystem == .metric ? "meters" : "feet")"
+        guard meters.isFinite, meters >= 0 else { return fallback }
+        let text: String?
         switch unitSystem {
         case .metric:
             if meters < 950 {
-                return distanceText(roundedUp(meters, toNearest: 10), unit: "meter")
+                text = distanceText(roundedUp(meters, toNearest: 10), unit: "meter")
+            } else {
+                text = distanceText(roundedTenths(meters / 1_000), unit: "kilometer")
             }
-            return distanceText(roundedTenths(meters / 1_000), unit: "kilometer")
         case .imperial:
             let feet = meters / 0.3048
             if feet < 500 {
-                return distanceText(roundedUp(feet, toNearest: 50), unit: "foot", plural: "feet")
+                text = distanceText(roundedUp(feet, toNearest: 50), unit: "foot", plural: "feet")
+            } else {
+                text = distanceText(roundedTenths(unitSystem.value(fromMeters: meters)), unit: "mile")
             }
-            return distanceText(roundedTenths(unitSystem.value(fromMeters: meters)), unit: "mile")
         }
+        return text ?? fallback
     }
 
     private static func roundedUp(_ value: Double, toNearest step: Double) -> Double {
@@ -48,8 +53,8 @@ public enum SpokenFormatter {
         (value * 10).rounded() / 10
     }
 
-    private static func distanceText(_ value: Double, unit: String, plural: String? = nil) -> String {
-        let tenths = Int((value * 10).rounded())
+    private static func distanceText(_ value: Double, unit: String, plural: String? = nil) -> String? {
+        guard let tenths = Int(exactly: (value * 10).rounded()) else { return nil }
         let number = tenths % 10 == 0 ? "\(tenths / 10)" : "\(tenths / 10).\(tenths % 10)"
         return value == 1 ? "\(number) \(unit)" : "\(number) \(plural ?? unit + "s")"
     }

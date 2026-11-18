@@ -27,7 +27,8 @@ struct AlertEngineTests {
 
     @Test func turnAheadSpeaksDistanceDirectionAndStreet() {
         var engine = makeEngine()
-        engine.post(.turnAhead(direction: .right, distanceMeters: 150, streetName: "Elm Street"), at: start)
+        engine.post(
+            .turnAhead(maneuverID: "m1", direction: .right, distanceMeters: 150, streetName: "Elm Street"), at: start)
         #expect(sink.spoken == ["In 150 meters, turn right onto Elm Street"])
         #expect(sink.haptics == [.turnRight])
         #expect(sink.banners == [AlertBanner(kind: .turnAhead, title: "Turn right", detail: "In 0.15 km, Elm Street")])
@@ -35,7 +36,7 @@ struct AlertEngineTests {
 
     @Test func turnAheadWithoutStreetOmitsIt() {
         var engine = makeEngine()
-        engine.post(.turnAhead(direction: .left, distanceMeters: 150, streetName: nil), at: start)
+        engine.post(.turnAhead(maneuverID: "m1", direction: .left, distanceMeters: 150, streetName: nil), at: start)
         #expect(sink.spoken == ["In 150 meters, turn left"])
         #expect(sink.haptics == [.turnLeft])
         #expect(sink.banners.first?.detail == "In 0.15 km")
@@ -43,7 +44,7 @@ struct AlertEngineTests {
 
     @Test func turnAheadUsesImperialUnits() {
         var engine = makeEngine(unitSystem: .imperial)
-        engine.post(.turnAhead(direction: .left, distanceMeters: 150, streetName: nil), at: start)
+        engine.post(.turnAhead(maneuverID: "m1", direction: .left, distanceMeters: 150, streetName: nil), at: start)
         #expect(sink.spoken == ["In 500 feet, turn left"])
         #expect(sink.banners.first?.detail == "In 0.09 mi")
     }
@@ -162,14 +163,18 @@ struct AlertEngineTests {
         #expect(sink.spoken == ["Workout paused", "Workout ended"])
         #expect(sink.banners.count == 3)
     }
+}
 
+extension AlertEngineTests {
     // MARK: Rate limiting
 
     @Test func sameTurnIsNotRepeatedOnEveryGPSUpdate() {
         var engine = makeEngine()
-        let first = engine.post(.turnAhead(direction: .left, distanceMeters: 150, streetName: "Elm"), at: start)
+        let first = engine.post(
+            .turnAhead(maneuverID: "m1", direction: .left, distanceMeters: 150, streetName: "Elm"), at: start)
         let second = engine.post(
-            .turnAhead(direction: .left, distanceMeters: 140, streetName: "Elm"), at: start.addingTimeInterval(1))
+            .turnAhead(maneuverID: "m1", direction: .left, distanceMeters: 140, streetName: "Elm"),
+            at: start.addingTimeInterval(1))
         #expect(first == .delivered)
         #expect(second == .rateLimited)
         #expect(sink.banners.count == 1)
@@ -180,9 +185,9 @@ struct AlertEngineTests {
     @Test func sameTurnIsDeliveredAgainAfterTheInterval() {
         var engine = makeEngine()
         let interval = AlertEngine.minimumInterval(for: .turnAhead)
-        engine.post(.turnAhead(direction: .left, distanceMeters: 150, streetName: "Elm"), at: start)
+        engine.post(.turnAhead(maneuverID: "m1", direction: .left, distanceMeters: 150, streetName: "Elm"), at: start)
         let later = engine.post(
-            .turnAhead(direction: .left, distanceMeters: 50, streetName: "Elm"),
+            .turnAhead(maneuverID: "m1", direction: .left, distanceMeters: 50, streetName: "Elm"),
             at: start.addingTimeInterval(interval))
         #expect(later == .delivered)
         #expect(sink.spoken.count == 2)
@@ -190,10 +195,45 @@ struct AlertEngineTests {
 
     @Test func differentTurnsAreNotRateLimitedAgainstEachOther() {
         var engine = makeEngine()
-        engine.post(.turnAhead(direction: .left, distanceMeters: 150, streetName: "Elm"), at: start)
+        engine.post(.turnAhead(maneuverID: "m1", direction: .left, distanceMeters: 150, streetName: "Elm"), at: start)
         let next = engine.post(
-            .turnAhead(direction: .right, distanceMeters: 100, streetName: "Oak"), at: start.addingTimeInterval(1))
+            .turnAhead(maneuverID: "m2", direction: .right, distanceMeters: 100, streetName: "Oak"),
+            at: start.addingTimeInterval(1))
         #expect(next == .delivered)
+    }
+
+    @Test func consecutiveUnnamedTurnsInTheSameDirectionAreBothDelivered() {
+        var engine = makeEngine()
+        engine.post(.turnAhead(maneuverID: "m1", direction: .left, distanceMeters: 50, streetName: nil), at: start)
+        let next = engine.post(
+            .turnAhead(maneuverID: "m2", direction: .left, distanceMeters: 50, streetName: nil),
+            at: start.addingTimeInterval(5))
+        #expect(next == .delivered)
+        #expect(sink.spoken.count == 2)
+    }
+
+    @Test func turnsOntoTheSameStreetAreBothDelivered() {
+        var engine = makeEngine()
+        engine.post(.turnAhead(maneuverID: "m1", direction: .left, distanceMeters: 50, streetName: "Elm"), at: start)
+        let next = engine.post(
+            .turnAhead(maneuverID: "m2", direction: .left, distanceMeters: 50, streetName: "Elm"),
+            at: start.addingTimeInterval(5))
+        #expect(next == .delivered)
+    }
+
+    @Test func blankStreetNameIsTreatedAsAbsent() {
+        var engine = makeEngine()
+        engine.post(.turnAhead(maneuverID: "m1", direction: .left, distanceMeters: 150, streetName: "  \n"), at: start)
+        engine.post(.turnAhead(maneuverID: "m2", direction: .left, distanceMeters: 150, streetName: ""), at: start)
+        #expect(sink.spoken == ["In 150 meters, turn left", "In 150 meters, turn left"])
+        #expect(sink.banners.map(\.detail) == ["In 0.15 km", "In 0.15 km"])
+    }
+
+    @Test func streetNameIsTrimmed() {
+        var engine = makeEngine()
+        engine.post(.turnAhead(maneuverID: "m1", direction: .left, distanceMeters: 150, streetName: " Elm "), at: start)
+        #expect(sink.spoken == ["In 150 meters, turn left onto Elm"])
+        #expect(sink.banners.first?.detail == "In 0.15 km, Elm")
     }
 
     @Test func offRouteRepeatsOnlyAsAnOccasionalReminder() {
@@ -219,8 +259,9 @@ struct AlertEngineTests {
         var engine = makeEngine()
         engine.post(.distanceMarker(distanceMeters: 6_000, paceSecondsPerUnit: 310), at: start)
         let next = engine.post(
-            .distanceMarker(distanceMeters: 7_000, paceSecondsPerUnit: 305), at: start.addingTimeInterval(300))
+            .distanceMarker(distanceMeters: 7_000, paceSecondsPerUnit: 305), at: start.addingTimeInterval(1))
         #expect(next == .delivered)
+        #expect(sink.spoken.count == 2)
     }
 
     @Test func pauseTappedTwiceQuicklySpeaksOnce() {
@@ -228,6 +269,46 @@ struct AlertEngineTests {
         engine.post(.paused, at: start)
         let again = engine.post(.paused, at: start.addingTimeInterval(0.5))
         #expect(again == .rateLimited)
+    }
+
+    @Test func pauseResumePauseWithinTheCooldownDeliversEachOne() {
+        var engine = makeEngine()
+        let first = engine.post(.paused, at: start)
+        let resumed = engine.post(.resumed, at: start.addingTimeInterval(0.5))
+        let second = engine.post(.paused, at: start.addingTimeInterval(1))
+        #expect([first, resumed, second] == [.delivered, .delivered, .delivered])
+        #expect(sink.spoken == ["Workout paused", "Workout resumed", "Workout paused"])
+    }
+
+    @Test func duplicateResumeIsStillSuppressedAfterAPause() {
+        var engine = makeEngine()
+        engine.post(.paused, at: start)
+        engine.post(.resumed, at: start.addingTimeInterval(0.5))
+        let again = engine.post(.resumed, at: start.addingTimeInterval(1))
+        #expect(again == .rateLimited)
+    }
+
+    @Test func backOnRouteEndsTheOffRouteEpisode() {
+        var engine = makeEngine()
+        engine.post(.offRoute(heading: .north), at: start)
+        engine.post(.backOnRoute, at: start.addingTimeInterval(5))
+        let again = engine.post(.offRoute(heading: .south), at: start.addingTimeInterval(10))
+        #expect(again == .delivered)
+        #expect(sink.spoken.last == "You're off route. Head south")
+    }
+
+    @Test func offRouteRepeatsAreSuppressedWithinOneEpisode() {
+        var engine = makeEngine()
+        engine.post(.offRoute(heading: .north), at: start)
+        let repeated = engine.post(.offRoute(heading: .north), at: start.addingTimeInterval(10))
+        #expect(repeated == .rateLimited)
+    }
+
+    @Test func wallClockMovingBackwardDoesNotExtendTheCooldown() {
+        var engine = makeEngine()
+        engine.post(.offRoute(heading: nil), at: start)
+        let afterJump = engine.post(.offRoute(heading: nil), at: start.addingTimeInterval(-3_600))
+        #expect(afterJump == .delivered)
     }
 
     @Test func quickPauseAndResumeAreBothDelivered() {

@@ -5,7 +5,8 @@ enum AlertPhrasing {
     static func banner(for alert: Alert, unitSystem: UnitSystem) -> AlertBanner {
         let kind = alert.kind
         switch alert {
-        case .turnAhead(let direction, let meters, let street):
+        case .turnAhead(_, let direction, let meters, let rawStreet):
+            let street = streetName(rawStreet)
             let distance = DistanceFormatter.string(fromMeters: meters, unitSystem: unitSystem)
             let detail = street.map { "In \(distance), \($0)" } ?? "In \(distance)"
             return AlertBanner(kind: kind, title: "Turn \(direction.rawValue)", detail: detail)
@@ -28,9 +29,17 @@ enum AlertPhrasing {
         }
     }
 
+    /// A blank street name is no street name.
+    private static func streetName(_ street: String?) -> String? {
+        guard let trimmed = street?.trimmingCharacters(in: .whitespacesAndNewlines), !trimmed.isEmpty else {
+            return nil
+        }
+        return trimmed
+    }
+
     static func haptic(for alert: Alert) -> AlertHaptic {
         switch alert {
-        case .turnAhead(let direction, _, _): direction == .left ? .turnLeft : .turnRight
+        case .turnAhead(_, let direction, _, _): direction == .left ? .turnLeft : .turnRight
         case .offRoute: .longDoubleTap
         case .distanceMarker: .lightTap
         case .backOnRoute, .segmentMarked, .paused, .resumed, .ended: .singleTap
@@ -39,7 +48,8 @@ enum AlertPhrasing {
 
     static func spoken(for alert: Alert, unitSystem: UnitSystem) -> String {
         switch alert {
-        case .turnAhead(let direction, let meters, let street):
+        case .turnAhead(_, let direction, let meters, let rawStreet):
+            let street = streetName(rawStreet)
             let distance = SpokenFormatter.distance(fromMeters: meters, unitSystem: unitSystem)
             let onto = street.map { " onto \($0)" } ?? ""
             return "In \(distance), turn \(direction.rawValue)\(onto)"

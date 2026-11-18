@@ -37,8 +37,16 @@ public struct AlertEngine {
     @discardableResult
     public mutating func post(_ alert: Alert, at now: Date = Date()) -> Outcome {
         let key = RateLimitKey(alert, unitSystem: unitSystem)
-        if let last = lastDelivered[key], now.timeIntervalSince(last) < Self.minimumInterval(for: alert.kind) {
-            return .rateLimited
+        // A negative gap means the wall clock moved backward; that must not extend the cooldown.
+        if let last = lastDelivered[key] {
+            let elapsed = now.timeIntervalSince(last)
+            if elapsed >= 0, elapsed < Self.minimumInterval(for: alert.kind) {
+                return .rateLimited
+            }
+        }
+        // Announcing a new state ends the opposite one, so its next announcement is never suppressed.
+        if let opposite = Self.opposite(of: alert.kind) {
+            lastDelivered = lastDelivered.filter { $0.key.kind != opposite }
         }
         lastDelivered[key] = now
 
@@ -52,13 +60,24 @@ public struct AlertEngine {
         return .delivered
     }
 
+    /// Pause and resume, and off route and back on route, each end the other's episode.
+    private static func opposite(of kind: AlertKind) -> AlertKind? {
+        switch kind {
+        case .paused: .resumed
+        case .resumed: .paused
+        case .offRoute: .backOnRoute
+        case .backOnRoute: .offRoute
+        case .turnAhead, .distanceMarker, .segmentMarked, .ended: nil
+        }
+    }
+
     /// Forgets what was delivered, for the start of a new workout.
     public mutating func reset() {
         lastDelivered.removeAll()
     }
 }
 
-/// Identifies "the same alert" for rate limiting: a turn is the same turn however far away it is.
+/// Identifies "the same alert" for rate limiting: a maneuver is the same turn however far away it is.
 private struct RateLimitKey: Hashable {
     let kind: AlertKind
     let subject: String
@@ -66,8 +85,8 @@ private struct RateLimitKey: Hashable {
     init(_ alert: Alert, unitSystem: UnitSystem) {
         kind = alert.kind
         switch alert {
-        case .turnAhead(let direction, _, let street):
-            subject = "\(direction.rawValue)|\(street ?? "")"
+        case .turnAhead(let maneuverID, _, _, _):
+            subject = maneuverID
         case .distanceMarker(let meters, _):
             subject = SpokenFormatter.distanceMarker(fromMeters: meters, unitSystem: unitSystem)
         case .segmentMarked(let number):

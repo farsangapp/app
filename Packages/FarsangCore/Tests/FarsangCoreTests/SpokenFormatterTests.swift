@@ -73,4 +73,10 @@ struct SpokenDistanceTests {
         #expect(SpokenFormatter.distance(fromMeters: -1, unitSystem: .metric) == "0 meters")
         #expect(SpokenFormatter.distance(fromMeters: .nan, unitSystem: .imperial) == "0 feet")
     }
+
+    @Test func unrepresentablyLargeDistanceSpeaksZeroInsteadOfTrapping() {
+        #expect(SpokenFormatter.distance(fromMeters: .greatestFiniteMagnitude, unitSystem: .metric) == "0 meters")
+        #expect(SpokenFormatter.distance(fromMeters: .greatestFiniteMagnitude, unitSystem: .imperial) == "0 feet")
+        #expect(SpokenFormatter.distance(fromMeters: 1e300, unitSystem: .metric) == "0 meters")
+    }
 }

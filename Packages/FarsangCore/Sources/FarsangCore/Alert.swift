@@ -16,7 +16,9 @@ public enum CompassDirection: String, Sendable, Hashable, CaseIterable {
 
 /// Something the watch tells the runner about: each one gets a banner, a haptic and a spoken line.
 public enum Alert: Sendable, Hashable {
-    case turnAhead(direction: TurnDirection, distanceMeters: Double, streetName: String?)
+    /// `maneuverID` identifies one maneuver on the route: the route producer keeps it the same across
+    /// GPS updates for that maneuver and gives the next maneuver a different one.
+    case turnAhead(maneuverID: String, direction: TurnDirection, distanceMeters: Double, streetName: String?)
     case offRoute(heading: CompassDirection?)
     case backOnRoute
     /// A completed kilometer or mile, depending on the unit system the engine uses.
