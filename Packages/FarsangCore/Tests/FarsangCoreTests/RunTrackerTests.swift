@@ -167,6 +167,17 @@ struct RunTrackerPauseTests {
         tracker.pause(at: at(40))
         #expect(tracker.snapshot(at: at(50)).elapsedTime == 20)
     }
+
+    @Test func pauseBeforeThePeriodStartDoesNotLetALaterResumeOverlap() {
+        var tracker = makeTracker()
+        tracker.start(at: at(0))
+        tracker.pause(at: at(20))
+        tracker.resume(at: at(30))
+        // Both dates are earlier than the running period that began at t=30, so they must not rewind the clock.
+        tracker.pause(at: at(5))
+        tracker.resume(at: at(10))
+        #expect(tracker.snapshot(at: at(20)).elapsedTime == 20)
+    }
 }
 
 struct RunTrackerNoiseTests {

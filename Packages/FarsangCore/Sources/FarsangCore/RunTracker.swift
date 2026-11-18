@@ -111,8 +111,10 @@ public struct RunTracker: Sendable {
 
     public mutating func pause(at date: Date) {
         guard state == .running else { return }
-        closePeriod(at: date)
-        pausedAt = date
+        // A pause dated before the running period began would rewind the clock, so it counts from the period start.
+        let effective = max(date, periodStart ?? date)
+        closePeriod(at: effective)
+        pausedAt = effective
         state = .paused
     }
 

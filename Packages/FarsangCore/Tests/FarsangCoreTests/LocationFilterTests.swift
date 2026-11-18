@@ -234,6 +234,43 @@ struct LocationFilterTests {
         }
     }
 
+    @Test func genuineRelocationReanchorsAfterAnIsolatedFutureJump() {
+        var filter = LocationFilter()
+        _ = filter.process(location(at: 0, meters: 0))
+        #expect(filter.process(location(at: 1_000, meters: 50_000)) == .rejected(.jump))
+        for second in 1...3 {
+            #expect(filter.process(location(at: Double(second), meters: 5_000)) == .rejected(.jump))
+        }
+        // The future-dated jump is the first distinct jump, so the fourth increasing fix after it is the fifth.
+        // The relocation re-anchors there instead of counting 5 km as distance.
+        #expect(filter.process(location(at: 4, meters: 5_000)) == .anchored)
+        guard case .accepted(let moved) = filter.process(location(at: 5, meters: 5_003)) else {
+            Issue.record("expected an accepted fix")
+            return
+        }
+        #expect(abs(moved.meters - 3) < 0.01)
+    }
+
+    @Test func staleJumpIsRememberedSoItsReplayCannotPassLater() {
+        var filter = LocationFilter()
+        _ = filter.process(location(at: 0, meters: 0))
+        for second in 10...13 {
+            #expect(filter.process(location(at: Double(second), meters: 5_000)) == .rejected(.jump))
+        }
+        // Older than the rejected jumps: rejected, and its copy is an out-of-order replay.
+        #expect(filter.process(location(at: 9, meters: 5_000)) == .rejected(.jump))
+        #expect(filter.process(location(at: 9, meters: 5_000)) == .rejected(.outOfOrder))
+        guard case .accepted = filter.process(location(at: 2, meters: 4)) else {
+            Issue.record("expected an accepted fix")
+            return
+        }
+        for second in 3...6 {
+            #expect(filter.process(location(at: Double(second), meters: 1_000)) == .rejected(.jump))
+        }
+        #expect(filter.process(location(at: 7, meters: 1_000)) == .anchored)
+        #expect(filter.process(location(at: 9, meters: 1_010)) == .rejected(.outOfOrder))
+    }
+
     @Test func resetForgetsTheLatestTimestamp() {
         var filter = LocationFilter()
         _ = filter.process(location(at: 50, meters: 0))
