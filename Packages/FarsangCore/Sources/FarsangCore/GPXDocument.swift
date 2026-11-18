@@ -28,8 +28,9 @@ public struct GPXDocument: Sendable, Hashable {
     }
 }
 
-/// One position from a GPX file. Every point has a valid latitude and longitude;
-/// elevation and time are present only when the file gives a readable value.
+/// One position from a GPX file. ``GPXParser`` only produces points with a latitude and longitude in range, and
+/// sets elevation and time only when the file gives a readable value. The initializer and the properties do not
+/// check anything, so code that creates or changes a point must keep the coordinates within bounds itself.
 public struct GPXPoint: Sendable, Hashable {
     /// Degrees, in -90...90.
     public var latitude: Double

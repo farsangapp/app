@@ -56,10 +56,11 @@ private final class GPXReader: NSObject, XMLParserDelegate {
     private(set) var sawRoot = false
     private(set) var failure: GPXParseError?
 
-    /// Open elements, innermost last. Foreign-namespace elements are recorded as `nil` so that
-    /// their children never look like GPX elements.
+    /// Open elements, innermost last. Foreign-namespace elements are recorded as `nil`.
     private var path: [String?] = []
-    private var extensionsDepth = 0
+    /// How many open elements are inside an ignored subtree (`extensions` or a foreign-namespace element),
+    /// counting the subtree's root. While it is above zero nothing is dispatched and no text is collected.
+    private var ignoredDepth = 0
     private var text = ""
     private var collectingText = false
 
@@ -94,16 +95,19 @@ private final class GPXReader: NSObject, XMLParserDelegate {
             document.version = attributeDict["version"]
             return
         }
-        if extensionsDepth > 0 || name == "extensions" {
-            extensionsDepth += 1
+        guard ignoredDepth == 0, let name, name != "extensions" else {
+            ignoredDepth += 1
             return
         }
-        guard let name else { return }
         startGPXElement(name, parent: path.last ?? nil, attributes: attributeDict, parser: parser)
     }
 
     func parser(_ parser: XMLParser, foundCharacters string: String) {
-        if collectingText { text += string }
+        if collectingText, ignoredDepth == 0 { text += string }
+    }
+
+    func parser(_ parser: XMLParser, foundCDATA block: Data) {
+        if collectingText, ignoredDepth == 0, let string = String(bytes: block, encoding: .utf8) { text += string }
     }
 
     func parser(
@@ -113,8 +117,8 @@ private final class GPXReader: NSObject, XMLParserDelegate {
         qualifiedName qName: String?
     ) {
         let name = path.removeLast()
-        if extensionsDepth > 0 {
-            extensionsDepth -= 1
+        if ignoredDepth > 0 {
+            ignoredDepth -= 1
             return
         }
         guard let name else { return }
@@ -256,9 +260,12 @@ private final class GPXReader: NSObject, XMLParserDelegate {
         parser.abortParsing()
     }
 
+    /// The whitespace XML allows around a decimal value: space, tab, carriage return and line feed.
+    private static let xmlWhitespace = CharacterSet(charactersIn: " \t\r\n")
+
     /// A finite decimal number, or `nil`.
     private static func parseNumber(_ string: String) -> Double? {
-        guard let value = Double(string.trimmingCharacters(in: .whitespaces)), value.isFinite else { return nil }
+        guard let value = Double(string.trimmingCharacters(in: xmlWhitespace)), value.isFinite else { return nil }
         return value
     }
 }
@@ -283,7 +290,29 @@ private struct GPXTimeParser {
 
     func parse(_ string: String) -> Date? {
         if string.hasSuffix("Z") { return parseUTC(string) }
+        // The formatter normalizes impossible dates such as February 29 in a common year, so check the date first.
+        guard hasValidCalendarDate(string) else { return nil }
         return plain.date(from: string) ?? fractional.date(from: string)
+    }
+
+    private static let digits = UInt8(ascii: "0")...UInt8(ascii: "9")
+
+    /// Whether the `YYYY-MM-DD` start of `string` names a real day. Strings too short or oddly shaped pass
+    /// through to the formatter, which rejects them.
+    private func hasValidCalendarDate(_ string: String) -> Bool {
+        let bytes = Array(string.utf8.prefix(10))
+        guard bytes.count == 10, bytes[4] == UInt8(ascii: "-"), bytes[7] == UInt8(ascii: "-") else { return true }
+        let digitBytes = bytes[0..<4] + bytes[5..<7] + bytes[8..<10]
+        guard digitBytes.allSatisfy(Self.digits.contains) else { return true }
+        let value = { (range: Range<Int>) in bytes[range].reduce(0) { $0 * 10 + Int($1 - UInt8(ascii: "0")) } }
+        return Self.isValidDay(year: value(0..<4), month: value(5..<7), day: value(8..<10))
+    }
+
+    private static func isValidDay(year: Int, month: Int, day: Int) -> Bool {
+        guard year >= 1, (1...12).contains(month) else { return false }
+        let isLeapYear = year % 4 == 0 && (year % 100 != 0 || year % 400 == 0)
+        let daysInMonth = [31, isLeapYear ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31][month - 1]
+        return (1...daysInMonth).contains(day)
     }
 
     /// Decodes `YYYY-MM-DDTHH:MM:SS[.fraction]Z`, or returns `nil` for any other shape or an invalid date.
@@ -291,11 +320,13 @@ private struct GPXTimeParser {
         var bytes = Array(string.utf8)
         guard bytes.count >= 20, bytes.removeLast() == UInt8(ascii: "Z") else { return nil }
 
-        func number(_ range: Range<Int>) -> Int? {
+        /// The decimal value of the digits in `range`, or `nil` if any is not an ASCII digit.
+        /// With `accumulate` false only the digits are checked, and the result is 0.
+        func number(_ range: Range<Int>, accumulate: Bool = true) -> Int? {
             var value = 0
             for byte in bytes[range] {
-                guard (UInt8(ascii: "0")...UInt8(ascii: "9")).contains(byte) else { return nil }
-                value = value * 10 + Int(byte - UInt8(ascii: "0"))
+                guard Self.digits.contains(byte) else { return nil }
+                if accumulate { value = value * 10 + Int(byte - UInt8(ascii: "0")) }
             }
             return value
         }
@@ -305,21 +336,24 @@ private struct GPXTimeParser {
             bytes[13] == UInt8(ascii: ":"), bytes[16] == UInt8(ascii: ":"),
             let year = number(0..<4), let month = number(5..<7), let day = number(8..<10),
             let hour = number(11..<13), let minute = number(14..<16), let second = number(17..<19),
-            year >= 1, (1...12).contains(month), hour < 24, minute < 60, second < 61
+            hour <= 24, minute < 60, second < 61, Self.isValidDay(year: year, month: month, day: day)
         else { return nil }
-        let isLeapYear = year % 4 == 0 && (year % 100 != 0 || year % 400 == 0)
-        let daysInMonth = [31, isLeapYear ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31][month - 1]
-        guard (1...daysInMonth).contains(day) else { return nil }
 
         var fraction = 0.0
+        var fractionIsZero = true
         if bytes.count > 19 {
-            // Nanosecond precision is plenty; extra digits are dropped so the value cannot overflow.
+            guard bytes[19] == UInt8(ascii: "."), bytes.count > 20 else { return nil }
+            // Every digit must be valid, but nanosecond precision is plenty: extra digits are not used,
+            // so the value cannot overflow.
+            guard number(20..<bytes.count, accumulate: false) != nil else { return nil }
             let end = min(bytes.count, 29)
-            guard bytes[19] == UInt8(ascii: "."), bytes.count > 20, let digits = number(20..<end) else {
-                return nil
-            }
-            fraction = Double(digits) / pow(10, Double(end - 20))
+            fraction = Double(number(20..<end) ?? 0) / pow(10, Double(end - 20))
+            fractionIsZero = bytes[20...].allSatisfy { $0 == UInt8(ascii: "0") }
         }
+
+        // `24:00:00` is the xsd:dateTime end-of-day form of midnight on the next day; nothing later is valid.
+        let isEndOfDay = hour == 24
+        if isEndOfDay, minute != 0 || second != 0 || !fractionIsZero { return nil }
 
         // Days since 1970-01-01 in the proleptic Gregorian calendar (Howard Hinnant's algorithm).
         let shiftedYear = month <= 2 ? year - 1 : year
@@ -328,9 +362,9 @@ private struct GPXTimeParser {
         let monthIndex = (month + 9) % 12
         let dayOfYear = (153 * monthIndex + 2) / 5 + day - 1
         let dayOfEra = yearOfEra * 365 + yearOfEra / 4 - yearOfEra / 100 + dayOfYear
-        let days = era * 146_097 + dayOfEra - 719_468
-
-        let seconds = Double(days * 86_400 + hour * 3_600 + minute * 60 + second) + fraction
-        return Date(timeIntervalSince1970: seconds)
+        // Widen before scaling: `Int` is 32 bits on arm64_32, where days * 86,400 overflows after 2038.
+        let days = Int64(era * 146_097 + dayOfEra - 719_468) + (isEndOfDay ? 1 : 0)
+        let wholeSeconds = days * 86_400 + Int64((isEndOfDay ? 0 : hour) * 3_600 + minute * 60 + second)
+        return Date(timeIntervalSince1970: Double(wholeSeconds) + fraction)
     }
 }

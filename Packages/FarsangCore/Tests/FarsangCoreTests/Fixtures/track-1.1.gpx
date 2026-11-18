@@ -16,6 +16,7 @@
           <gpxtpx:TrackPointExtension>
             <gpxtpx:hr>140</gpxtpx:hr>
             <gpxtpx:name>not a point name</gpxtpx:name>
+            <gpxtpx:wrapper><ele>99</ele></gpxtpx:wrapper>
           </gpxtpx:TrackPointExtension>
         </extensions>
       </trkpt>
