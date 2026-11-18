@@ -70,6 +70,15 @@ jobs:
             -destination 'generic/platform=watchOS Simulator' \
             CODE_SIGNING_ALLOWED=NO
 
+      - name: Build spike app
+        if: steps.project.outputs.present == 'true'
+        run: |
+          xcodebuild build \
+            -project "$PROJECT" \
+            -scheme FarsangSpike \
+            -destination 'generic/platform=watchOS Simulator' \
+            CODE_SIGNING_ALLOWED=NO
+
       - name: Run tests
         if: steps.project.outputs.present == 'true'
         run: |
