@@ -155,7 +155,7 @@ public struct RunTracker: Sendable {
         case .accepted(let distance): moved = distance.meters
         }
         totalMeters += moved
-        record(TrailPoint(meters: totalMeters, elapsed: elapsed(at: sample.timestamp)))
+        record(TrailPoint(meters: totalMeters, elapsed: trailElapsed(at: sample.timestamp)))
     }
 
     public mutating func add(_ sample: HeartRateSample) {
@@ -226,6 +226,17 @@ public struct RunTracker: Sendable {
         return accumulatedElapsed + max(date, clock).timeIntervalSince(periodStart)
     }
 
+    /// Time running at the moment a fix was captured. Unlike `elapsed(at:)` this does not apply the clock floor, so a
+    /// fix delivered after a later lifecycle date keeps its own time. The date is never before the period start, so
+    /// the result is never negative. It is forced to be at least the previous trail point's time, since
+    /// `rollingPace` interpolates between neighbors. A fix captured after the clock can lie ahead of a snapshot's
+    /// elapsed time; `rollingPace` bounds the window start to that time.
+    private func trailElapsed(at date: Date) -> TimeInterval {
+        guard let periodStart else { return accumulatedElapsed }
+        let captured = accumulatedElapsed + max(date.timeIntervalSince(periodStart), 0)
+        return max(captured, trail.last?.elapsed ?? 0)
+    }
+
     private mutating func closePeriod(at date: Date) {
         accumulatedElapsed = elapsed(at: date)
         periodStart = nil
@@ -270,6 +281,6 @@ public struct RunTracker: Sendable {
             let fraction = (target - before.meters) / (after.meters - before.meters)
             startElapsed += fraction * (after.elapsed - before.elapsed)
         }
-        return Pace(duration: now - startElapsed, distance: window)
+        return Pace(duration: max(now - startElapsed, 0), distance: window)
     }
 }
