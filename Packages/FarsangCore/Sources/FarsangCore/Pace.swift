@@ -12,7 +12,9 @@ public struct Pace: Sendable, Hashable, Comparable {
     /// Returns nil without distance or time, so callers show a placeholder instead of 0 or infinity.
     public init?(duration: TimeInterval, distance: Distance) {
         guard distance.meters > 0, duration > 0 else { return nil }
-        self.init(secondsPerKilometer: duration / distance.kilometers)
+        let seconds = duration / distance.kilometers
+        guard seconds.isFinite, seconds > 0 else { return nil }
+        self.init(secondsPerKilometer: seconds)
     }
 
     public var secondsPerMile: Double { secondsPerKilometer * Self.metersPerMile / 1_000 }

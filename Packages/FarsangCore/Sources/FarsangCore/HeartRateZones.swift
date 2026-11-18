@@ -35,7 +35,7 @@ public struct HeartRateZones: Sendable, Hashable {
     }
 
     public static func estimatedMaxHeartRate(forAge age: Int) -> Double {
-        Double(220 - age)
+        220 - Double(age)
     }
 
     public func lowerBound(of zone: HeartRateZone) -> Double {
@@ -45,6 +45,6 @@ public struct HeartRateZones: Sendable, Hashable {
     /// Returns nil below zone 1; anything above the maximum counts as zone 5.
     public func zone(for beatsPerMinute: Double) -> HeartRateZone? {
         guard maxHeartRate.isFinite, maxHeartRate > 0 else { return nil }
-        return HeartRateZone.allCases.last { beatsPerMinute * 100 >= maxHeartRate * $0.lowerBoundPercent }
+        return HeartRateZone.allCases.last { beatsPerMinute >= lowerBound(of: $0) }
     }
 }

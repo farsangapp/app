@@ -16,3 +16,13 @@ struct DistanceTests {
         #expect(Distance.zero.miles == 0)
     }
 }
+
+struct CoordinateRoundingTests {
+    @Test func nearAntipodalPointsStayFinite() {
+        let meters = Coordinate(latitude: 0, longitude: 0).distance(to: Coordinate(latitude: 0, longitude: 180)).meters
+        #expect(meters.isFinite)
+        #expect(abs(meters - 6_371_000 * .pi) < 1)
+        let north = Coordinate(latitude: 90, longitude: 0).distance(to: Coordinate(latitude: -90, longitude: 0)).meters
+        #expect(north.isFinite)
+    }
+}

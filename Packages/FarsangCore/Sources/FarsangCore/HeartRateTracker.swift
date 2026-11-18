@@ -7,13 +7,22 @@ struct HeartRateTracker: Sendable {
 
     private var latest: HeartRateSample?
     private var anchor: HeartRateSample?
-    private var credited: [HeartRateZone: TimeInterval] = [:]
+    /// Time already credited, as intervals so a snapshot of an earlier date can leave out later credit.
+    /// Contiguous intervals in the same zone merge, so this grows with zone changes and gaps, not with samples.
+    private var credited: [CreditedInterval] = []
     private var sum = 0.0
     private var count = 0
 
+    private struct CreditedInterval {
+        let zone: HeartRateZone
+        let start: Date
+        var end: Date
+    }
+
     init(zones: HeartRateZones, staleAfter: TimeInterval) {
         self.zones = zones
-        self.staleAfter = staleAfter
+        // A negative (or NaN) limit would credit negative zone time.
+        self.staleAfter = staleAfter > 0 ? staleAfter : 0
     }
 
     var average: Double? { count > 0 ? sum / Double(count) : nil }
@@ -41,7 +50,7 @@ struct HeartRateTracker: Sendable {
 
     /// The latest reading, or nil once it is older than `staleAfter`, so the screen stops showing a dead sensor.
     func current(at date: Date) -> HeartRateSample? {
-        guard let latest, date.timeIntervalSince(latest.timestamp) <= staleAfter else { return nil }
+        guard let latest, (0...staleAfter).contains(date.timeIntervalSince(latest.timestamp)) else { return nil }
         return latest
     }
 
@@ -56,8 +65,13 @@ struct HeartRateTracker: Sendable {
         self.anchor = nil
     }
 
+    /// Zone time accrued up to `date`; credit committed after `date` is left out.
     func timeInZone(at date: Date) -> [HeartRateZone: TimeInterval] {
-        var result = credited
+        var result: [HeartRateZone: TimeInterval] = [:]
+        for interval in credited {
+            let seconds = min(interval.end, date).timeIntervalSince(interval.start)
+            if seconds > 0 { result[interval.zone, default: 0] += seconds }
+        }
         if let anchor, let zone = zones.zone(for: anchor.beatsPerMinute) {
             result[zone, default: 0] += heldDuration(of: anchor, until: date)
         }
@@ -66,7 +80,12 @@ struct HeartRateTracker: Sendable {
 
     private mutating func credit(_ sample: HeartRateSample, until date: Date) {
         guard let zone = zones.zone(for: sample.beatsPerMinute) else { return }
-        credited[zone, default: 0] += heldDuration(of: sample, until: date)
+        let end = sample.timestamp.addingTimeInterval(heldDuration(of: sample, until: date))
+        if let last = credited.last, last.zone == zone, last.end == sample.timestamp {
+            credited[credited.count - 1].end = end
+        } else {
+            credited.append(CreditedInterval(zone: zone, start: sample.timestamp, end: end))
+        }
     }
 
     private func heldDuration(of sample: HeartRateSample, until date: Date) -> TimeInterval {

@@ -124,7 +124,7 @@ public struct RunTracker: Sendable {
     public mutating func end(at date: Date) {
         guard state == .running || state == .paused else { return }
         if state == .running { closePeriod(at: date) }
-        closeSegment(elapsed: accumulatedElapsed)
+        closeSegment(elapsed: accumulatedElapsed, keepingZeroDurationData: true)
         state = .ended
     }
 
@@ -192,8 +192,10 @@ public struct RunTracker: Sendable {
 
     var trailPointCount: Int { trail.count }
 
-    private mutating func closeSegment(elapsed now: TimeInterval) {
-        guard now > segment.startElapsed else { return }
+    /// A segment without elapsed time is dropped, unless the run ends and it already holds counted data.
+    private mutating func closeSegment(elapsed now: TimeInterval, keepingZeroDurationData: Bool = false) {
+        let hasData = segment.heartRateCount > 0 || totalMeters > segment.startMeters
+        guard now > segment.startElapsed || (keepingZeroDurationData && hasData) else { return }
         completedSegments.append(segment.stats(index: completedSegments.count + 1, elapsed: now, meters: totalMeters))
         segment = SegmentAccumulator(startElapsed: now, startMeters: totalMeters)
     }

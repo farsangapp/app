@@ -20,7 +20,9 @@ public struct Coordinate: Sendable, Hashable {
         let halfChordSquared =
             sin(deltaLat / 2) * sin(deltaLat / 2)
             + cos(lat1) * cos(lat2) * sin(deltaLon / 2) * sin(deltaLon / 2)
-        let angle = 2 * atan2(halfChordSquared.squareRoot(), (1 - halfChordSquared).squareRoot())
+        // Rounding can push the term just outside [0, 1] for near-antipodal points, which would make a root NaN.
+        let clamped = min(max(halfChordSquared, 0), 1)
+        let angle = 2 * atan2(clamped.squareRoot(), (1 - clamped).squareRoot())
         return Distance(meters: Self.earthRadiusMeters * angle)
     }
 }

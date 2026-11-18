@@ -43,4 +43,11 @@ struct CoordinateTests {
         let at60 = Coordinate(latitude: 60, longitude: 0).distance(to: Coordinate(latitude: 60, longitude: 1))
         #expect(abs(at60.meters / atEquator.meters - 0.5) < 0.001)
     }
+
+    @Test func isNilWhenTheQuotientIsNotUsable() {
+        #expect(Pace(duration: 60, distance: Distance(meters: .leastNonzeroMagnitude)) == nil)
+        #expect(Pace(duration: .infinity, distance: Distance(meters: 1_000)) == nil)
+        #expect(Pace(duration: 60, distance: Distance(meters: .infinity)) == nil)
+        #expect(Pace(duration: .nan, distance: Distance(meters: 1_000)) == nil)
+    }
 }

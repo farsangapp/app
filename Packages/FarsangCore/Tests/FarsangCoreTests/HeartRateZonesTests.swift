@@ -37,4 +37,20 @@ struct HeartRateZonesTests {
         #expect(HeartRateZone.two < HeartRateZone.four)
         #expect(HeartRateZone.allCases.count == 5)
     }
+
+    @Test func extremeAgesDoNotTrap() {
+        #expect(HeartRateZones.estimatedMaxHeartRate(forAge: .min) > 0)
+        #expect(HeartRateZones.estimatedMaxHeartRate(forAge: .max) < 0)
+        #expect(HeartRateZones(age: .max).zone(for: 150) == nil)
+    }
+
+    @Test(arguments: [191.0, 187.0, 173.0, 199.0, 203.5, 211.0, 157.0])
+    func classifiesTheBoundsItPublishes(maxHeartRate: Double) {
+        let zones = HeartRateZones(maxHeartRate: maxHeartRate)
+        for zone in HeartRateZone.allCases {
+            let lower = zones.lowerBound(of: zone)
+            #expect(zones.zone(for: lower) == zone)
+            #expect(zones.zone(for: lower.nextDown) != zone)
+        }
+    }
 }

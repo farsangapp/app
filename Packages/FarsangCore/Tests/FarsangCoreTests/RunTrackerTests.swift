@@ -199,14 +199,48 @@ struct RunTrackerLifecycleTests {
     @Test func endingTheRunClosesTheLastSegment() throws {
         var tracker = makeTracker()
         tracker.start(at: at(0))
-        feed(recordedFixes(from: 0, to: 100, startMeters: 0, speed: 4), into: &tracker)
+        feed(recordedFixes(from: 0, to: 40, startMeters: 0, speed: 4), into: &tracker)
         tracker.markSegment(at: at(40))
+        feed(recordedFixes(from: 41, to: 100, startMeters: 164, speed: 4), into: &tracker)
         tracker.end(at: at(100))
 
         let snapshot = tracker.snapshot(at: at(100))
         #expect(snapshot.completedSegments.map(\.index) == [1, 2])
+        #expect(snapshot.completedSegments.first?.duration == 40)
+        #expect(abs(try #require(snapshot.completedSegments.first).distance.meters - 160) < 1)
         #expect(snapshot.completedSegments.last?.duration == 60)
+        #expect(abs(try #require(snapshot.completedSegments.last).distance.meters - 240) < 1)
         #expect(snapshot.currentSegment == nil)
+    }
+
+    @Test func endingAtTheStartInstantKeepsASegmentThatHoldsData() throws {
+        var tracker = makeTracker()
+        tracker.start(at: at(5))
+        tracker.add(heartRate(at: 5, 150))
+        tracker.end(at: at(5))
+
+        let snapshot = tracker.snapshot(at: at(5))
+        let segment = try #require(snapshot.completedSegments.first)
+        #expect(snapshot.completedSegments.count == 1)
+        #expect(segment.duration == 0)
+        #expect(segment.averageHeartRate == 150)
+        #expect(snapshot.averageHeartRate == 150)
+    }
+
+    @Test func endingAtTheStartInstantWithNoDataMakesNoSegment() {
+        var tracker = makeTracker()
+        tracker.start(at: at(5))
+        tracker.end(at: at(5))
+        #expect(tracker.snapshot(at: at(5)).completedSegments.isEmpty)
+    }
+
+    @Test func endingRightAfterAMarkAddsNoEmptySegment() {
+        var tracker = makeTracker()
+        tracker.start(at: at(0))
+        tracker.add(heartRate(at: 10, 150))
+        tracker.markSegment(at: at(10))
+        tracker.end(at: at(10))
+        #expect(tracker.snapshot(at: at(10)).completedSegments.count == 1)
     }
 
     @Test func ignoresSamplesBeforeStartAndAfterEnd() {
@@ -214,17 +248,20 @@ struct RunTrackerLifecycleTests {
         tracker.add(location(at: 0, meters: 0))
         tracker.add(heartRate(at: 0, 150))
         tracker.start(at: at(1))
+        #expect(tracker.snapshot(at: at(1)).currentHeartRate == nil)
         tracker.add(location(at: 1, meters: 0))
         tracker.add(location(at: 2, meters: 3))
         tracker.end(at: at(3))
         tracker.add(location(at: 4, meters: 6))
         tracker.add(heartRate(at: 4, 150))
+        #expect(tracker.snapshot(at: at(4)).currentHeartRate == nil)
 
         let snapshot = tracker.snapshot(at: at(100))
         #expect(snapshot.state == .ended)
         #expect(snapshot.elapsedTime == 2)
         #expect(abs(snapshot.distance.meters - 3) < 0.1)
         #expect(snapshot.currentHeartRate == nil)
+        #expect(snapshot.averageHeartRate == nil)
     }
 
     @Test func startingTwiceKeepsTheFirstStart() {

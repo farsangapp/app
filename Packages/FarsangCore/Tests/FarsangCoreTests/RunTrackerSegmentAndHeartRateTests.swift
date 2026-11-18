@@ -83,6 +83,40 @@ struct RunTrackerHeartRateTests {
         #expect(tracker.snapshot(at: at(11)).currentZone == nil)
     }
 
+    @Test func readingIsNotCurrentBeforeItsOwnTimestamp() {
+        var tracker = makeTracker()
+        tracker.start(at: at(0))
+        tracker.add(heartRate(at: 20, 150))
+        #expect(tracker.snapshot(at: at(19)).currentHeartRate == nil)
+        #expect(tracker.snapshot(at: at(19)).currentZone == nil)
+        #expect(tracker.snapshot(at: at(20)).currentHeartRate == 150)
+    }
+
+    @Test func negativeStaleLimitNeverCreditsNegativeZoneTime() {
+        var tracker = RunTracker(
+            configuration: .init(heartRateZones: HeartRateZones(maxHeartRate: 200), heartRateStaleAfter: -1)
+        )
+        tracker.start(at: at(0))
+        tracker.add(heartRate(at: 0, 150))
+        tracker.add(heartRate(at: 5, 130))
+        let snapshot = tracker.snapshot(at: at(8))
+        #expect(snapshot.timeInZone.values.allSatisfy { $0 >= 0 })
+        #expect(snapshot.timeInZone.values.reduce(0, +) == 0)
+    }
+
+    @Test func historicalSnapshotOnlyReportsZoneTimeUpToItsDate() {
+        var tracker = makeTracker(maxHeartRate: 200)
+        tracker.start(at: at(0))
+        tracker.add(heartRate(at: 0, 130))
+        tracker.add(heartRate(at: 8, 170))
+
+        #expect(tracker.snapshot(at: at(4)).timeInZone[.two] == 4)
+        #expect((tracker.snapshot(at: at(4)).timeInZone[.four] ?? 0) == 0)
+        #expect(tracker.snapshot(at: at(8)).timeInZone[.two] == 8)
+        #expect(tracker.snapshot(at: at(10)).timeInZone[.four] == 2)
+        #expect(tracker.snapshot(at: at(-3)).timeInZone[.two] == nil)
+    }
+
     @Test func olderReadingDoesNotReplaceANewerOne() {
         var tracker = makeTracker()
         tracker.start(at: at(0))
