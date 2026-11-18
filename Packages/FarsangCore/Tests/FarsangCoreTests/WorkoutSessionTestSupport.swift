@@ -51,8 +51,8 @@ struct Fixture {
     var session: WorkoutSession
     let clock: ManualClock
 
-    init() {
-        clock = ManualClock()
+    init(clock: ManualClock = ManualClock()) {
+        self.clock = clock
         session = WorkoutSession(clock: clock)
     }
 

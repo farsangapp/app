@@ -110,6 +110,11 @@ public struct WorkoutSession: Sendable {
     private var endUptime: TimeInterval?
     /// The uptime at which the open pause began, if one is open.
     private var openPauseUptime: TimeInterval?
+    /// The summed length of the running intervals that have finished (closed by a pause or the end).
+    /// Each is added once, at its transition, so the total never depends on subtracting paused time.
+    private var completedMovingTime: TimeInterval = 0
+    /// The uptime at which the current running interval began, nil while paused, idle or ended.
+    private var runningSinceUptime: TimeInterval?
 
     public init(clock: any WorkoutClock = SystemWorkoutClock()) {
         self.clock = clock
@@ -125,13 +130,12 @@ public struct WorkoutSession: Sendable {
 
     /// Time since the start without paused time, on the monotonic clock. Fixed while paused and once
     /// ended, and it resumes counting the moment the session resumes.
+    ///
+    /// It is the finished running intervals plus the one in progress, each measured as a difference
+    /// of two uptime readings. A transition adds the same difference it was already showing, so the
+    /// value is continuous across pause, resume and end.
     public var movingTime: TimeInterval {
-        guard let startUptime else { return 0 }
-        // While paused, the moving time is frozen at the uptime the pause began, so it does not
-        // depend on later clock reads and has no rounding drift.
-        let reference = openPauseUptime ?? endUptime ?? clock.uptime()
-        let closed = pauses.reduce(0) { $0 + ($1.duration ?? 0) }
-        return max(0, reference - startUptime - closed)
+        completedMovingTime + (runningSinceUptime.map { max(0, clock.uptime() - $0) } ?? 0)
     }
 
     /// Time since the start, paused time included, as of a wall date. Stops growing once ended.
@@ -178,17 +182,23 @@ public struct WorkoutSession: Sendable {
             let now = clock.now()
             state = .running
             startedAt = now
-            startUptime = clock.uptime()
+            let uptime = clock.uptime()
+            startUptime = uptime
+            runningSinceUptime = uptime
             return .started(timestamp: now)
         case (.running, .pause):
             let now = clock.now()
             state = .paused
+            let uptime = clock.uptime()
+            finishRunningInterval(atUptime: uptime)
             pauses.append(PauseInterval(start: now))
-            openPauseUptime = clock.uptime()
+            openPauseUptime = uptime
             return .paused(timestamp: now)
         case (.paused, .resume):
             let now = clock.now()
-            closeOpenPause(atUptime: clock.uptime())
+            let uptime = clock.uptime()
+            closeOpenPause(atUptime: uptime)
+            runningSinceUptime = uptime
             state = .running
             return .resumed(timestamp: now)
         case (.running, .markSegment):
@@ -199,6 +209,7 @@ public struct WorkoutSession: Sendable {
             let now = clock.now()
             let uptime = clock.uptime()
             closeOpenPause(atUptime: uptime)
+            finishRunningInterval(atUptime: uptime)
             state = .ended
             endedAt = now
             endUptime = uptime
@@ -206,6 +217,13 @@ public struct WorkoutSession: Sendable {
         default:
             throw .invalidTransition(from: state, event: event)
         }
+    }
+
+    /// Adds the running interval in progress, if any, to the finished total.
+    private mutating func finishRunningInterval(atUptime uptime: TimeInterval) {
+        guard let since = runningSinceUptime else { return }
+        completedMovingTime += max(0, uptime - since)
+        runningSinceUptime = nil
     }
 
     /// Closes the open pause, if any, recording its measured length.
@@ -226,5 +244,7 @@ extension WorkoutSession: Equatable {
             && lhs.segments == rhs.segments && lhs.pauses == rhs.pauses
             && lhs.startUptime == rhs.startUptime && lhs.endUptime == rhs.endUptime
             && lhs.openPauseUptime == rhs.openPauseUptime
+            && lhs.completedMovingTime == rhs.completedMovingTime
+            && lhs.runningSinceUptime == rhs.runningSinceUptime
     }
 }
