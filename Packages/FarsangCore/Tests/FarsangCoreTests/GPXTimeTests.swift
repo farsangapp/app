@@ -62,7 +62,8 @@ struct GPXTimeTests {
     /// The `time` of a waypoint whose `time` element contains `value`.
     private func time(_ value: String) throws -> Date? {
         let xml = #"<gpx version="1.1" creator="x"><wpt lat="1" lon="2"><time>\#(value)</time></wpt></gpx>"#
-        return try GPXParser.parse(Data(xml.utf8)).waypoints.first?.point.time
+        let waypoint = try #require(GPXParser.parse(Data(xml.utf8)).waypoints.first)
+        return waypoint.point.time
     }
 }
 

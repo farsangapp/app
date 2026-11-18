@@ -64,7 +64,10 @@ struct GPXParserTests {
             <gpx version="1.1" creator="x" xmlns="http://www.topografix.com/GPX/1/1" xmlns:f="urn:other">
               <wpt lat="1" lon="2">
                 <ele>12.5</ele>
-                <extensions><f:wrapper><ele>99</ele><name>wrong</name></f:wrapper></extensions>
+                <extensions>
+                  <f:wrapper><wpt><ele>99</ele><name>wrong</name></wpt></f:wrapper>
+                  <wpt><ele>98</ele></wpt>
+                </extensions>
               </wpt>
             </gpx>
             """
