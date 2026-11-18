@@ -2,6 +2,7 @@
 excluded:
   - .build
   - Packages/FarsangCore/.build
+  - Packages/FarsangUI/.build
   - DerivedData
   - build
 
