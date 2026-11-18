@@ -56,7 +56,9 @@ private final class GPXReader: NSObject, XMLParserDelegate {
     private(set) var sawRoot = false
     private(set) var failure: GPXParseError?
 
-    /// Open elements, innermost last. Foreign-namespace elements are recorded as `nil`.
+    /// Open elements, innermost last. An element is recorded by name only if the parser accepted it at its position
+    /// (a `trkseg` directly inside a `trk` it accepted, and so on). Foreign-namespace elements and elements found
+    /// anywhere else are recorded as `nil`, so nothing inside them is ever read as GPX content.
     private var path: [String?] = []
     /// How many open elements are inside an ignored subtree (`extensions` or a foreign-namespace element),
     /// counting the subtree's root. While it is above zero nothing is dispatched and no text is collected.
@@ -84,7 +86,8 @@ private final class GPXReader: NSObject, XMLParserDelegate {
     ) {
         let isGPX = namespaceURI.map { $0.isEmpty || Self.namespaces.contains($0) } ?? true
         let name = isGPX ? elementName : nil
-        defer { path.append(name) }
+        var accepted = false
+        defer { path.append(accepted ? name : nil) }
 
         if path.isEmpty {
             guard name == "gpx" else {
@@ -92,6 +95,7 @@ private final class GPXReader: NSObject, XMLParserDelegate {
                 return
             }
             sawRoot = true
+            accepted = true
             document.version = attributeDict["version"]
             return
         }
@@ -99,7 +103,7 @@ private final class GPXReader: NSObject, XMLParserDelegate {
             ignoredDepth += 1
             return
         }
-        startGPXElement(name, parent: path.last ?? nil, attributes: attributeDict, parser: parser)
+        accepted = startGPXElement(name, parent: path.last ?? nil, attributes: attributeDict, parser: parser)
     }
 
     func parser(_ parser: XMLParser, foundCharacters string: String) {
@@ -131,26 +135,30 @@ private final class GPXReader: NSObject, XMLParserDelegate {
 
     // MARK: Elements
 
-    private func startGPXElement(_ name: String, parent: String?, attributes: [String: String], parser: XMLParser) {
+    /// Starts the element if GPX allows it inside `parent`, and returns whether it did. `parent` is the name of
+    /// the enclosing element only if that element was itself accepted, so a point, segment or field can only
+    /// ever attach to the element that really contains it.
+    private func startGPXElement(
+        _ name: String, parent: String?, attributes: [String: String], parser: XMLParser
+    ) -> Bool {
+        if let kind = Self.pointKind(name, parent: parent) {
+            return startPoint(kind, attributes: attributes, parser: parser)
+        }
         switch (name, parent) {
         case ("trk", "gpx"):
             track = GPXTrack()
-        case ("trkseg", "trk") where track != nil:
+        case ("trkseg", "trk"):
             segment = GPXTrackSegment()
         case ("rte", "gpx"):
             route = GPXRoute()
-        case ("wpt", "gpx"):
-            startPoint(.waypoint, attributes: attributes, parser: parser)
-            waypoint = GPXWaypoint(point: GPXPoint(latitude: 0, longitude: 0))
-        case ("trkpt", "trkseg") where segment != nil:
-            startPoint(.trackPoint, attributes: attributes, parser: parser)
-        case ("rtept", "rte") where route != nil:
-            startPoint(.routePoint, attributes: attributes, parser: parser)
+        case ("metadata", "gpx"):
+            break
         case _ where Self.readsText(name, parent: parent):
             beginText()
         default:
-            break
+            return false
         }
+        return true
     }
 
     private func endGPXElement(_ name: String, parent: String?) {
@@ -173,21 +181,24 @@ private final class GPXReader: NSObject, XMLParserDelegate {
         }
     }
 
-    private func startPoint(_ kind: PointKind, attributes: [String: String], parser: XMLParser) {
+    /// Begins a point from its `lat` and `lon`, or fails the parse and returns `false`.
+    private func startPoint(_ kind: PointKind, attributes: [String: String], parser: XMLParser) -> Bool {
         let line = parser.lineNumber
         guard
             let latitude = attributes["lat"].flatMap(Self.parseNumber),
             let longitude = attributes["lon"].flatMap(Self.parseNumber)
         else {
             fail(.invalidCoordinate(line: line), parser)
-            return
+            return false
         }
         guard (-90...90).contains(latitude), (-180...180).contains(longitude) else {
             fail(.coordinateOutOfRange(latitude: latitude, longitude: longitude, line: line), parser)
-            return
+            return false
         }
         point = GPXPoint(latitude: latitude, longitude: longitude)
         pointKind = kind
+        if kind == .waypoint { waypoint = GPXWaypoint(point: GPXPoint(latitude: 0, longitude: 0)) }
+        return true
     }
 
     private func finishPoint() {
@@ -244,6 +255,15 @@ private final class GPXReader: NSObject, XMLParserDelegate {
 
     // MARK: Helpers
 
+    private static func pointKind(_ name: String, parent: String?) -> PointKind? {
+        switch (name, parent) {
+        case ("wpt", "gpx"): .waypoint
+        case ("trkpt", "trkseg"): .trackPoint
+        case ("rtept", "rte"): .routePoint
+        default: nil
+        }
+    }
+
     /// The text-only elements the parser keeps, by name and parent.
     private static func readsText(_ name: String, parent: String?) -> Bool {
         switch (name, parent) {
@@ -265,15 +285,15 @@ private final class GPXReader: NSObject, XMLParserDelegate {
 
     /// A finite decimal number, or `nil`.
     ///
-    /// Only plain decimal syntax is accepted: an optional sign, digits with an optional fraction, and an optional
-    /// exponent. `Double(_:)` alone would also read hexadecimal forms, `inf` and `nan`, which GPX does not allow.
+    /// Only `xsd:decimal` syntax is accepted: an optional sign, then digits with an optional fraction. `Double(_:)`
+    /// alone would also read exponents (`1e2`), hexadecimal forms, `inf` and `nan`, which GPX does not allow.
     private static func parseNumber(_ string: String) -> Double? {
         let trimmed = string.trimmingCharacters(in: xmlWhitespace)
         guard isPlainDecimal(trimmed), let value = Double(trimmed), value.isFinite else { return nil }
         return value
     }
 
-    /// Whether `string` matches `[+-]? (digits [. digits?] | . digits) ([eE] [+-]? digits)?`.
+    /// Whether `string` matches `[+-]? (digits [. digits?] | . digits)`.
     private static func isPlainDecimal(_ string: String) -> Bool {
         var rest = string.utf8[...]
         let isDigit = { (byte: UInt8) in (UInt8(ascii: "0")...UInt8(ascii: "9")).contains(byte) }
@@ -293,12 +313,7 @@ private final class GPXReader: NSObject, XMLParserDelegate {
         let integerDigits = skipDigits()
         var fractionDigits = 0
         if skipOne({ $0 == UInt8(ascii: ".") }) { fractionDigits = skipDigits() }
-        guard integerDigits + fractionDigits > 0 else { return false }
-        if skipOne({ $0 == UInt8(ascii: "e") || $0 == UInt8(ascii: "E") }) {
-            _ = skipOne(isSign)
-            guard skipDigits() > 0 else { return false }
-        }
-        return rest.isEmpty
+        return integerDigits + fractionDigits > 0 && rest.isEmpty
     }
 }
 

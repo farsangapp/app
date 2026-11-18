@@ -5,6 +5,10 @@ import Foundation
 /// `ISO8601DateFormatter` costs tens of microseconds per call, which adds up over a 50,000-point file.
 /// Timestamps in the common UTC form (`2025-01-01T08:00:00Z`, optionally with fractional seconds) are decoded by
 /// hand; timestamps with a numeric offset go through the formatter.
+///
+/// A second of `60` is read only as a leap second, which exists solely as the last second of a UTC day: it is
+/// accepted when the time is 23:59:60 UTC (after applying any offset) and read as the next midnight. Any other
+/// `:60`, such as `08:00:60Z`, is not a real time, so it reads as `nil`.
 struct GPXTimeParser {
     private let plain = ISO8601DateFormatter()
     private let fractional = ISO8601DateFormatter()
@@ -18,7 +22,26 @@ struct GPXTimeParser {
         if string.hasSuffix("Z") { return parseUTC(string) }
         // The formatter normalizes impossible dates such as February 29 in a common year, so check the date first.
         guard hasValidCalendarDate(string) else { return nil }
-        return plain.date(from: string) ?? fractional.date(from: string)
+        return parseWithOffset(string)
+    }
+
+    /// Reads a timestamp with a numeric offset through the formatters, applying the leap-second rule.
+    private func parseWithOffset(_ string: String) -> Date? {
+        var bytes = Array(string.utf8)
+        // The formatters reject a second of 60, so read it as 59 and add the second back once it is known to be a
+        // leap second.
+        let isLeapSecond = bytes.count > 18 && bytes[17] == UInt8(ascii: "6") && bytes[18] == UInt8(ascii: "0")
+        if isLeapSecond {
+            bytes[17] = UInt8(ascii: "5")
+            bytes[18] = UInt8(ascii: "9")
+        }
+        guard
+            let adjusted = String(bytes: bytes, encoding: .utf8),
+            let date = plain.date(from: adjusted) ?? fractional.date(from: adjusted)
+        else { return nil }
+        guard isLeapSecond else { return date }
+        let secondOfUTCDay = (Int64(date.timeIntervalSince1970.rounded(.down)) % 86_400 + 86_400) % 86_400
+        return secondOfUTCDay == 86_399 ? date.addingTimeInterval(1) : nil
     }
 
     private static let digits = UInt8(ascii: "0")...UInt8(ascii: "9")
@@ -62,7 +85,8 @@ struct GPXTimeParser {
             bytes[13] == UInt8(ascii: ":"), bytes[16] == UInt8(ascii: ":"),
             let year = number(0..<4), let month = number(5..<7), let day = number(8..<10),
             let hour = number(11..<13), let minute = number(14..<16), let second = number(17..<19),
-            hour <= 24, minute < 60, second < 61, Self.isValidDay(year: year, month: month, day: day)
+            hour <= 24, minute < 60, second < 61, Self.isValidDay(year: year, month: month, day: day),
+            second < 60 || (hour == 23 && minute == 59)
         else { return nil }
 
         var fraction = 0.0

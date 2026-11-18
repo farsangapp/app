@@ -42,6 +42,20 @@ struct GPXTimeTests {
         #expect(try time("2025-12-31T25:00:00Z") == nil)
     }
 
+    @Test func readsASecondOf60OnlyAsALeapSecondAtTheEndOfAUTCDay() throws {
+        // A leap second is the instant just before the next midnight, so it equals 24:00:00.
+        #expect(try time("2016-12-31T23:59:60Z") == isoDate("2017-01-01T00:00:00Z"))
+        #expect(try time("2016-12-31T23:59:60.5Z") == isoDate("2017-01-01T00:00:00.5Z"))
+        #expect(try time("2017-01-01T01:59:60+02:00") == isoDate("2017-01-01T00:00:00Z"))
+        #expect(try time("2016-12-31T18:59:60-05:00") == isoDate("2017-01-01T00:00:00Z"))
+        #expect(try time("2025-01-01T08:00:60Z") == nil)
+        #expect(try time("2025-01-01T23:58:60Z") == nil)
+        #expect(try time("2025-01-01T22:59:60Z") == nil)
+        #expect(try time("2025-01-01T08:00:60+02:00") == nil)
+        #expect(try time("2025-01-01T23:59:60+02:00") == nil)
+        #expect(try time("2025-01-01T08:00:61Z") == nil)
+    }
+
     @Test func validatesEveryFractionalDigit() throws {
         #expect(try time("2025-01-01T08:00:00.123456789xZ") == nil)
         #expect(try time("2025-01-01T08:00:00.123456789012x3Z") == nil)
