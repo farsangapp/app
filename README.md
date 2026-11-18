@@ -18,3 +18,15 @@ xcodebuild test -scheme Farsang -destination 'platform=iOS Simulator,name=iPhone
 - To run an app from Xcode, pick the `FarsangPhone` or `FarsangWatch` scheme.
 - `Packages/FarsangCore` holds the pure logic (no UI) and also tests with `swift test` from that folder.
 - Signing: set your own development team in Xcode locally. Never commit a team ID.
+
+## Lint
+
+Formatting and linting run in CI as the `static` check. Run both locally before pushing:
+
+```sh
+brew install swift-format swiftlint
+swift-format lint --strict --recursive .
+swiftlint lint --strict
+```
+
+- `.swift-format` (4-space indentation, 120-column lines, no trailing commas) and `.swiftlint.yml` live at the repo root. Both tools auto-discover their config from the working directory.

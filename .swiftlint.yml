@@ -1,0 +1,10 @@
+# SwiftLint configuration for Farsang. Run with `swiftlint lint --strict`.
+excluded:
+  - .build
+  - Packages/FarsangCore/.build
+  - DerivedData
+  - build
+
+line_length:
+  warning: 120
+  error: 200

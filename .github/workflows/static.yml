@@ -1,0 +1,32 @@
+name: Static analysis
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  static:
+    name: static
+    runs-on: macos-26
+    timeout-minutes: 15
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+
+      - name: Install linters
+        run: brew install swift-format swiftlint
+
+      - name: swift-format
+        run: swift-format lint --strict --recursive .
+
+      - name: swiftlint
+        run: swiftlint lint --strict
